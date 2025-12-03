@@ -1,0 +1,98 @@
+# .gitignore for CA-FuseNet
+
+# ----------------------------------------------------------------------
+# 1. Bytecode and Temporary System Files (Python)
+# ----------------------------------------------------------------------
+
+# Compiled source (.pyc, .o, .so)
+__pycache__/
+*.pyc
+*.o
+*.so
+
+# Distribution / Packaging
+.Python
+build/
+dist/
+eggs/
+*.egg-info/
+
+# Environments (Virtual Environments)
+venv/
+env/
+.venv/
+.direnv/
+.idea/
+.vscode/
+
+# ----------------------------------------------------------------------
+# 2. Logging and Debug Files
+# ----------------------------------------------------------------------
+
+*.log
+*.err
+*.sql
+*.sqlite
+logs/
+
+# ----------------------------------------------------------------------
+# 3. OS Generated Files
+# ----------------------------------------------------------------------
+
+# Windows
+Thumbs.db
+ehthumbs.db
+
+# macOS
+.DS_Store
+
+# Linux/Unix
+*~
+.#*
+
+# ----------------------------------------------------------------------
+# 4. Machine Learning & Deep Learning Specific Files
+# ----------------------------------------------------------------------
+
+# Datasets (Typically too large for version control)
+data/
+datasets/
+input/
+output/
+
+# Trained Models and Checkpoints
+# Keep these out of VCS unless they are very small and essential.
+checkpoints/
+models/
+runs/
+*.pth
+*.pt
+*.h5
+*.weights
+*.onnx
+saved_models/
+
+# Experiment Logging and Tracking (e.g., TensorBoard, Weights & Biases)
+tensorboard/
+wandb/
+mlruns/
+
+# Evaluation results
+results/
+
+# ----------------------------------------------------------------------
+# 5. Jupyter Notebooks / IDE Specific Files
+# ----------------------------------------------------------------------
+
+.ipynb_checkpoints/
+# Jupyter files saved without output (optional)
+# *.ipynb
+
+# ----------------------------------------------------------------------
+# 6. Personal Configuration Files (Credentials, Keys)
+# ----------------------------------------------------------------------
+
+# Credentials, API keys, and environment variables
+.env
+.apikey
+config_local.py
