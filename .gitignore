@@ -55,6 +55,7 @@ ehthumbs.db
 # ----------------------------------------------------------------------
 
 # Datasets (Typically too large for version control)
+mockdata/
 data/
 datasets/
 input/
@@ -85,6 +86,7 @@ results/
 # ----------------------------------------------------------------------
 
 .ipynb_checkpoints/
+notebooks/
 # Jupyter files saved without output (optional)
 # *.ipynb
 
