@@ -1,84 +1,80 @@
 import pytest
 import os
-import pandas as pd
+import numpy as np
+import pickle
+import torch
+# Assuming the class name is ITWPOLIMI_Loader and it's located here:
 from src.dataset.itwpolimi_loader import ITWPOLIMI_Loader 
 
 # ----------------------------------------------------------------------
 # INITIAL TEST CONFIGURATION
 # ----------------------------------------------------------------------
-TEST_ROOT_DIR = 'D:/Dateset_mock_POLIMI-ITW-S'
-TEST_VIDEOS_DIR = 'blurred_RGB_video'
-TEST_ANNOTATIONS_DIR = 'annotation_skeleton_bbox_label'
 
-# Expected number of samples in the subset
-EXPECTED_SAMPLES_COUNT = 11
-# (Example: if you have 5 'cleaning' videos and 6 'jumping' videos with corresponding JSONs)
+# Root directory for your project/data (where the 'data_preprocessed' folder lives)
+TEST_ROOT_DIR = 'C:/Users/flori/Documents/MECIN/CA-FuseNet/' 
+# Path to the pre-processed data relative to the root
+TEST_DATA_PATH = os.path.join(TEST_ROOT_DIR, 'data', 'processed_dataset')
+
+EXPECTED_TRAIN_SAMPLES = 27 # Total number of action sequences in the 'train' split
+EXPECTED_TEST_SAMPLES = 40  # Total number of action sequences in the 'test' split
+
+# Expected shapes 
+# T=300 (padded length), J=17 (joints), 2D (coords), 1 (single person)
+EXPECTED_POSE_SHAPE = (EXPECTED_TRAIN_SAMPLES, 2, 300, 17, 1) 
+# BBox shape: (N, T, 4) if sequence is saved
+EXPECTED_BBOX_SHAPE = (EXPECTED_TRAIN_SAMPLES, 300, 4) 
 # ----------------------------------------------------------------------
 
-# Initializes the Dataset once
+
 @pytest.fixture(scope="module")
-def dataset_instance():
-    """Returns an instance of the ITWPOLIMI_Loader for all module tests."""
-    if not os.path.exists(TEST_ROOT_DIR):
-        pytest.skip(f"The test root directory does not exist: {TEST_ROOT_DIR}")
-    return ITWPOLIMI_Loader(root_path=TEST_ROOT_DIR, annotations_path=TEST_ANNOTATIONS_DIR, videos_path=TEST_VIDEOS_DIR)
+def train_dataset_instance():
+    """Provides a single instance of the DataLoader for the 'train' phase."""
+    # Ensure the required paths exist before running tests
+    if not os.path.exists(TEST_DATA_PATH):
+        pytest.skip(f"Pre-processed data path not found: {TEST_DATA_PATH}")
+        
+    return ITWPOLIMI_Loader(
+        phase='train', 
+        root_path=TEST_ROOT_DIR, 
+        videos_path='blurred_RGB_video',
+        data_path=TEST_DATA_PATH 
+    )
 
 # ----------------------------------------------------------------------
-# __init__ and __len__ FUNCTIONALITY TESTS
+# TESTS FOR __init__ and __len__
 # ----------------------------------------------------------------------
 
-def test_initialization_success(dataset_instance):
-    """Verifies that initialization does not raise exceptions."""
-    # If the fixture executed successfully, initialization is OK
-    assert dataset_instance is not None
-    # Verifies that self.samples is created as a DataFrame
-    assert isinstance(dataset_instance.samples, pd.DataFrame)
+def test_initialization_success(train_dataset_instance):
+    """Verifies that the __init__ method runs without exceptions."""
+    assert train_dataset_instance is not None
     
-def test_correct_sample_count(dataset_instance):
-    """Verifies that __len__ returns the correct number of samples."""
-    # Checks that the index size matches the expected count
-    assert len(dataset_instance) == EXPECTED_SAMPLES_COUNT
+def test_correct_sample_count(train_dataset_instance):
+    """Verifies that __len__ returns the expected total number of action sequences (N)."""
+    assert len(train_dataset_instance) == EXPECTED_TRAIN_SAMPLES
 
-def test_sample_structure(dataset_instance):
-    """Verifies that the index contains the essential columns (path and category)."""
-    required_columns = ['video_path', 'json_path', 'category']
+def test_skeletal_data_shape(train_dataset_instance):
+    """Verifies the shape of the loaded pose (skeletal) data (N, 2, T, 17, 1)."""
+    # Check shape: N must match the expected sample count
+    # Note: We stack the expected shape here with the actual N
+    expected_shape_with_n = (EXPECTED_TRAIN_SAMPLES, *train_dataset_instance.data_ske.shape[1:])
     
-    # Checks that all required columns are present in the DataFrame
-    assert all(col in dataset_instance.samples.columns for col in required_columns)
+    assert train_dataset_instance.data_ske.shape == expected_shape_with_n
     
-def test_file_paths_exist(dataset_instance):
-    """Verifies that all paths in the index point to existing files on disk."""
-    
-    samples_df = dataset_instance.samples
-    
-    # Iterates over the index and checks the existence of both files
-    for _, row in samples_df.iterrows():
-        video_exists = os.path.exists(os.path.join(TEST_ROOT_DIR, row['video_path']))
-        json_exists = os.path.exists(os.path.join(TEST_ROOT_DIR, row['json_path']))
-        
-        # Fails the test if either path does not exist
-        if not video_exists or not json_exists:
-            pytest.fail(
-                f"Missing file error. Video Path: {os.path.join(TEST_ROOT_DIR, row['video_path'])} (Exists: {video_exists}), "
-                f"JSON Path: {os.path.join(TEST_ROOT_DIR, row['json_path'])} (Exists: {json_exists})"
-            )
 
-def test_path_format_and_association(dataset_instance):
-    """Verifies the file name consistency (e.g., 'b_' prefix and VID_ID association)."""
-    samples_df = dataset_instance.samples
+def test_data_alignment(train_dataset_instance):
+    """Verifies that all loaded structures (pose, bbox, labels) have the same length (N)."""
+    n_skeletal = train_dataset_instance.data_ske.shape[0]
+    n_bbox = train_dataset_instance.data_bbox.shape[0]
+    n_labels = len(train_dataset_instance.label) # Assuming self.label is a list
     
-    for index, row in samples_df.iterrows():
-        video_name = os.path.basename(row['video_path'])
-        json_name = os.path.basename(row['json_path'])
-        
-        # 1. Check for the 'b_' prefix in the video name
-        assert video_name.startswith('b_'), f"Video name does not start with 'b_': {video_name}"
-        
-        # 2. Verify that the base names of the files match (excluding prefixes)
-        # Example: 'b_VID_123.mp4' must correspond to 'action_VID_123.json'
-        
-        # Extract the video ID from the JSON name (after 'action_' and before '.json')
-        expected_vid_id = json_name.replace('action_', '').replace('.json', '')
-        
-        # Check that the extracted video ID is contained in the video file name
-        assert expected_vid_id in video_name, f"Incorrect association for sample {index}. JSON ID: {expected_vid_id}, Video Name: {video_name}"
+    # All N dimensions must be identical
+    assert n_skeletal == EXPECTED_TRAIN_SAMPLES
+    assert n_skeletal == n_bbox
+    assert n_skeletal == n_labels
+    
+def test_data_type(train_dataset_instance):
+    """Verifies that NumPy arrays are loaded as expected."""
+    assert isinstance(train_dataset_instance.data_ske, np.ndarray)
+    assert isinstance(train_dataset_instance.data_bbox, np.ndarray)
+    assert isinstance(train_dataset_instance.label, torch.LongTensor) 
+    
