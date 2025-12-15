@@ -9,6 +9,7 @@ __pycache__/
 *.pyc
 *.o
 *.so
+*.pdf
 
 # Distribution / Packaging
 .Python
