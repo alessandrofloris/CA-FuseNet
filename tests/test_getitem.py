@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import cv2
 
-from src.dataset.itwpolimi_loader import ITWPOLIMI_Loader 
+from src.feeder.itwpolimi_feeder import ITWPOLIMI_Feeder 
 
 # ----------------------------------------------------------------------
 # FIXTURES AND MOCKING SETUP
@@ -32,9 +32,9 @@ def create_dummy_video(path, frame_count, fps=10, width=320, height=240):
     out.release()
 
 @pytest.fixture(scope="module")
-def setup_dummy_loader(tmpdir_factory):
+def setup_dummy_feeder(tmpdir_factory):
     """
-    Creates all necessary dummy files and a mock loader instance for testing __getitem__.
+    Creates all necessary dummy files and a mock feeder instance for testing __getitem__.
     """
     
     # 1. Create the output directory and video path
@@ -64,8 +64,8 @@ def setup_dummy_loader(tmpdir_factory):
         'videos_path': ""
     }
 
-    # Create a Mock class to bypass the file loading logic in ITWPOLIMI_Loader.__init__
-    class MockITWPOLIMI_Loader(ITWPOLIMI_Loader):
+    # Create a Mock class to bypass the file loading logic in ITWPOLIMI_Feeder.__init__
+    class MockITWPOLIMI_Feeder(ITWPOLIMI_Feeder):
         def __init__(self):
             # Overwrite __init__ to load mock data directly into instance attributes
             self.data_ske = mock_data['data_ske']
@@ -80,22 +80,22 @@ def setup_dummy_loader(tmpdir_factory):
         def __len__(self):
             return 1
 
-    return MockITWPOLIMI_Loader()
+    return MockITWPOLIMI_Feeder()
 
 
 # ----------------------------------------------------------------------
 # TESTS FOR TUBELET EXTRACTION LOGIC
 # ----------------------------------------------------------------------
 
-def test_tubelet_output_shape(setup_dummy_loader):
+def test_tubelet_output_shape(setup_dummy_feeder):
     """Verifies the final shape of the output RGB tubelet tensor (T_RGB, C, H, W)."""
-    loader = setup_dummy_loader
+    feeder = setup_dummy_feeder
     
     # Call the helper function directly for isolated testing
-    rgb_tubelet = loader._load_rgb_tubelet(
-        video_path=loader.video_paths[0], 
-        frame_indices=loader.frame_indices[0], 
-        bbox_data=loader.data_bbox[0], 
+    rgb_tubelet = feeder._load_rgb_tubelet(
+        video_path=feeder.video_paths[0], 
+        frame_indices=feeder.frame_indices[0], 
+        bbox_data=feeder.data_bbox[0], 
         T_RGB=T_RGB_TEST, 
         H_W=H_W_TEST
     )
@@ -105,14 +105,14 @@ def test_tubelet_output_shape(setup_dummy_loader):
     assert rgb_tubelet.dtype == torch.float32
 
 
-def test_spatial_cropping_and_normalization(setup_dummy_loader):
+def test_spatial_cropping_and_normalization(setup_dummy_feeder):
     """Verifies pixel values are normalized [0, 1] and color channel conversion is correct."""
-    loader = setup_dummy_loader
+    feeder = setup_dummy_feeder
     
-    rgb_tubelet = loader._load_rgb_tubelet(
-        video_path=loader.video_paths[0], 
-        frame_indices=loader.frame_indices[0], 
-        bbox_data=loader.data_bbox[0], 
+    rgb_tubelet = feeder._load_rgb_tubelet(
+        video_path=feeder.video_paths[0], 
+        frame_indices=feeder.frame_indices[0], 
+        bbox_data=feeder.data_bbox[0], 
         T_RGB=T_RGB_TEST, 
         H_W=H_W_TEST
     )
@@ -121,7 +121,7 @@ def test_spatial_cropping_and_normalization(setup_dummy_loader):
     assert torch.all(rgb_tubelet >= 0.0)
     assert torch.all(rgb_tubelet <= 1.0)
     
-    # 2. Verifies color channel mapping (BGR -> RGB in the loader)
+    # 2. Verifies color channel mapping (BGR -> RGB in the feeder)
     # Dummy video color (BGR): B=100, G=50, R=20. Normalized (0-1): B=0.39, G=0.19, R=0.07
     
     # Check the Blue channel mean (should be at index 2 in RGB output)
@@ -133,14 +133,14 @@ def test_spatial_cropping_and_normalization(setup_dummy_loader):
     assert 0.05 < mean_red_channel < 0.15 # Around 20/255 = 0.078
     
     
-def test_integration_getitem(setup_dummy_loader):
+def test_integration_getitem(setup_dummy_feeder):
     """Verifies that the full __getitem__ method returns the expected dictionary structure."""
-    loader = setup_dummy_loader
+    feeder = setup_dummy_feeder
     
     # Temporarily update __getitem__ logic to return the complete planned dictionary
     # (assuming missing crowd_awareness logic is currently commented or mocked)
     
-    sample = loader[0]
+    sample = feeder[0]
     
     # Verify the dictionary keys
     assert 'video' in sample
@@ -149,5 +149,5 @@ def test_integration_getitem(setup_dummy_loader):
     
     # Verify the final output shapes
     assert sample['video'].shape == (T_RGB_TEST, 3, H_W_TEST, H_W_TEST)
-    assert sample['pose'].shape == (2, 300, 17, 1) 
+    assert sample['pose'].shape == (300, 17, 2) # (T, J, C)
     assert sample['label'].ndim == 0 or sample['label'].ndim == 1 # Scalar or 1D tensor

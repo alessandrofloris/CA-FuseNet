@@ -9,11 +9,11 @@ from torch.utils.data import Dataset
 
 logger = logging.getLogger(__name__)
 
-class ITWPOLIMI_Loader(Dataset):
+class ITWPOLIMI_Feeder(Dataset):
 
     def __init__(self, phase, root_path, videos_path, data_path, transform=None):
         '''
-        This method initializes the dataset loader with the given parameters.
+        This method initializes the dataset feeder with the given parameters.
 
         Here i load the .pkl files and the .npy files from the specified paths,
         specifically:
@@ -72,6 +72,13 @@ class ITWPOLIMI_Loader(Dataset):
         ske_data = self.data_ske[idx] 
         ske_data = torch.from_numpy(ske_data).float() 
 
+        # Remove last dimension (person id)
+        ske_data = ske_data.squeeze(-1)  
+
+        # Permutation needed for the model: (C, T, V) => (T, V=J, C)
+        # TODO: Maybe i can avoid this permutation if i change the PyHAPT code accordingly
+        ske_data = ske_data.permute(1, 2, 0)
+
         # Load bounding box data
         bbox_data = self.data_bbox[idx]
 
@@ -89,8 +96,8 @@ class ITWPOLIMI_Loader(Dataset):
         rgb_tubelet = self._load_rgb_tubelet(video_path, frame_indices, bbox_data, T_RGB, H_W)
 
         return {
-            'video': rgb_tubelet,    # (T_RGB. C. H, W)
-            'pose': ske_data,       # (2, 300, 17, 1)
+            'video': rgb_tubelet,    # (T_RGB, C, H, W)
+            'pose': ske_data,       # (T, J, C)
             'label': label
         }
     

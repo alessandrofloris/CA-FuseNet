@@ -3,8 +3,7 @@ import os
 import numpy as np
 import pickle
 import torch
-# Assuming the class name is ITWPOLIMI_Loader and it's located here:
-from src.dataset.itwpolimi_loader import ITWPOLIMI_Loader 
+from src.feeder.itwpolimi_feeder import ITWPOLIMI_Feeder 
 
 # ----------------------------------------------------------------------
 # INITIAL TEST CONFIGURATION
@@ -28,12 +27,12 @@ EXPECTED_BBOX_SHAPE = (EXPECTED_TRAIN_SAMPLES, 300, 4)
 
 @pytest.fixture(scope="module")
 def train_dataset_instance():
-    """Provides a single instance of the DataLoader for the 'train' phase."""
+    """Provides a single instance of the DataFeeder for the 'train' phase."""
     # Ensure the required paths exist before running tests
     if not os.path.exists(TEST_DATA_PATH):
         pytest.skip(f"Pre-processed data path not found: {TEST_DATA_PATH}")
         
-    return ITWPOLIMI_Loader(
+    return ITWPOLIMI_Feeder(
         phase='train', 
         root_path=TEST_ROOT_DIR, 
         videos_path='blurred_RGB_video',

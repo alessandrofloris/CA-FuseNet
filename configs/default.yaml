@@ -1,0 +1,32 @@
+# configs/default.yaml
+
+# --- Paths ---
+root_path: 'C:/Users/flori/Documents/MECIN/CA-FuseNet/'
+videos_path: 'blurred_RGB_video/'
+data_path: 'data_preprocessed/'
+
+# --- Model Parameters ---
+pose_channels: 2
+pose_joints: 17
+pose_length: 300
+
+# Embedding and Fusion Dimensions
+pose_embedding_dim: 256
+video_embedding_dim: 256
+fused_embedding_dim: 512
+
+# Classification
+num_classes: 15
+
+# --- DataLoader Parameters ---
+batch_size: 16
+num_workers: 4
+
+# --- Training Parameters ---
+learning_rate: 0.0001
+num_epochs: 50
+device: 'cuda'
+
+# --- Video Tubelet Parameters ---
+t_rgb: 32
+h_w: 224
