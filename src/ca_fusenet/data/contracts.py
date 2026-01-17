@@ -60,7 +60,7 @@ def _range_check(arr: np.ndarray, low: float, high: float, eps: float, label: st
 
 @dataclass
 class PoseSequenceContract:
-    """Pose joint sequence for one person: (T, J, 3) with (x, y, v)."""
+    """Pose joint sequence for one person: (N, C, T, J, M) with (x, y, v)."""
 
     joint: np.ndarray
     coord_space: Literal["normalized", "pixel"] = "normalized"
@@ -82,13 +82,15 @@ class PoseSequenceContract:
     def validate(self, expected_T: int | None = None) -> None:
         arr = _ensure_ndarray(self.joint, "PoseSequenceContract.joint")
         ensure(
-            arr.ndim == 3,
-            "PoseSequenceContract.joint expected shape (T, J, 3); got "
+            arr.ndim == 5,
+            "PoseSequenceContract.joint expected shape (N, C, T, J, M); got "
             + _shape_str(arr),
         )
-        T, J, C = arr.shape
+        N, C, T, J, M = arr.shape
+        ensure(N >= 1, f"PoseSequenceContract.joint expected N>=1; got N={N}")
         ensure(T >= 1, f"PoseSequenceContract.joint expected T>=1; got T={T}")
         ensure(J >= 1, f"PoseSequenceContract.joint expected J>=1; got J={J}")
+        ensure(M == 1, f"PoseSequenceContract.joint expected M==1; got M={M}")
         ensure(
             C == 3,
             f"PoseSequenceContract.joint expected last dim C==3; got C={C} shape={arr.shape}",
@@ -105,24 +107,31 @@ class PoseSequenceContract:
             f"PoseSequenceContract.coord_space must be 'normalized' or 'pixel'; got {self.coord_space}",
         )
         if self.coord_space == "normalized":
-            xy = arr[..., :2]
+            xy = arr[:, :2, :, :, :]
             _range_check(xy, 0.0, 1.0, _EPS, "PoseSequenceContract.joint[x,y]")
-        v = arr[..., 2]
+        v = arr[:, 2, :, :, :]
         _range_check(v, 0.0, 1.0, _EPS, "PoseSequenceContract.joint[v]")
+
+        if self.coord_space == "pixel":
+            x = arr[:, 0, :, :, :]
+            y = arr[:, 1, :, :, :]
+
+            _range_check(x, 0.0, 1920.0, _EPS, "Pose x-coordinate")
+            _range_check(y, 0.0, 1080.0, _EPS, "Pose y-coordinate")
 
 
 @dataclass
 class BBoxSequenceContract:
-    """Bounding boxes aligned to T: (T, 4) with [x1, y1, w, h]."""
+    """Bounding boxes aligned to T: (N, T, 4) with [x1, y1, w, h]."""
 
     bboxes: np.ndarray
-    coord_space: Literal["normalized", "pixel"] = "normalized"
+    coord_space: Literal["normalized", "pixel"] = "pixel"
 
     @classmethod
     def from_array(
         cls,
         bboxes: np.ndarray,
-        coord_space: Literal["normalized", "pixel"] = "normalized",
+        coord_space: Literal["normalized", "pixel"] = "pixel",
     ) -> "BBoxSequenceContract":
         arr = np.asarray(bboxes)
         _ensure_float_dtype(arr, "BBoxSequenceContract.bboxes")
@@ -135,10 +144,11 @@ class BBoxSequenceContract:
     def validate(self, expected_T: int | None = None) -> None:
         arr = _ensure_ndarray(self.bboxes, "BBoxSequenceContract.bboxes")
         ensure(
-            arr.ndim == 2,
-            "BBoxSequenceContract.bboxes expected shape (T, 4); got " + _shape_str(arr),
+            arr.ndim == 3,
+            "BBoxSequenceContract.bboxes expected shape (N, T, 4); got " + _shape_str(arr),
         )
-        T, C = arr.shape
+        N, T, C = arr.shape
+        ensure(N >= 1, f"BBoxSequenceContract.bboxes expected N>=1; got N={N}")
         ensure(T >= 1, f"BBoxSequenceContract.bboxes expected T>=1; got T={T}")
         ensure(
             C == 4,
@@ -155,13 +165,33 @@ class BBoxSequenceContract:
             self.coord_space in ("normalized", "pixel"),
             f"BBoxSequenceContract.coord_space must be 'normalized' or 'pixel'; got {self.coord_space}",
         )
+
         if self.coord_space == "normalized":
             _range_check(arr, 0.0, 1.0, _EPS, "BBoxSequenceContract.bboxes")
+
+        if self.coord_space == "pixel":
+            # Assumiamo arr abbia forma (T, 4) dove le colonne sono x, y, w, h
+            x = arr[..., 0]
+            y = arr[..., 1]
+            w = arr[..., 2]
+            h = arr[..., 3]
+
+            # X axis (Width)
+            _range_check(x, 0.0, 1920.0, _EPS, "BBox x-coordinate")
+            _range_check(w, 0.0, 1920.0, _EPS, "BBox width")
+
+            # Y axis (Height)
+            _range_check(y, 0.0, 1080.0, _EPS, "BBox y-coordinate")
+            _range_check(h, 0.0, 1080.0, _EPS, "BBox height")
+
+            # Extra consistency check: the sum should not exceed the frame
+            ensure((x + w).max() <= 1920.0 + _EPS, "BBox exceeds horizontal frame boundary")
+            ensure((y + h).max() <= 1080.0 + _EPS, "BBox exceeds vertical frame boundary")
 
 
 @dataclass
 class IndicatorsContract:
-    """Crowd/context indicators aligned to T or clip-level: (T, K) or (K,)."""
+    """Crowd/context indicators aligned to T or clip-level: (N, T, K)."""
 
     values: np.ndarray
     names: Optional[List[str]] = None
@@ -181,22 +211,21 @@ class IndicatorsContract:
     def validate(self, expected_T: int | None = None) -> None:
         arr = _ensure_ndarray(self.values, "IndicatorsContract.values")
         ensure(
-            arr.ndim in (1, 2),
-            "IndicatorsContract.values expected shape (K,) or (T, K); got "
+            arr.ndim == 3,
+            "IndicatorsContract.values expected shape (N, T, K); got "
             + _shape_str(arr),
         )
-        if arr.ndim == 1:
-            K = arr.shape[0]
-            ensure(K >= 1, f"IndicatorsContract.values expected K>=1; got K={K}")
-        else:
-            T, K = arr.shape
-            ensure(T >= 1, f"IndicatorsContract.values expected T>=1; got T={T}")
-            ensure(K >= 1, f"IndicatorsContract.values expected K>=1; got K={K}")
-            if expected_T is not None:
+        N, T, K = arr.shape
+        ensure(N >= 1, f"IndicatorsContract.values expected N>=1; got N={N}")
+        ensure(T >= 1, f"IndicatorsContract.values expected T>=1; got T={T}")
+        ensure(K >= 1, f"IndicatorsContract.values expected K>=1; got K={K}")
+        
+        if expected_T is not None:
                 ensure(
                     T == expected_T,
                     f"IndicatorsContract.values expected T=={expected_T}; got T={T}",
                 )
+
         _ensure_float_dtype(arr, "IndicatorsContract.values")
         ensure(is_finite_numpy(arr), "IndicatorsContract.values contains NaN or inf")
         if self.names is not None:
