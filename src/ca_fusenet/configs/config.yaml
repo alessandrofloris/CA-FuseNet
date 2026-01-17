@@ -1,0 +1,24 @@
+defaults:
+  - data: _schema
+  - model: ca_fusenet
+  - encoder/video: r3d_18
+  - encoder/pose: stgcn_lite
+  - _self_
+
+project: ca_fusenet
+seed: 42
+
+paths:
+  output_dir: ${hydra:runtime.output_dir}
+
+logging:
+  level: INFO
+
+training:
+  deterministic: false
+
+hydra:
+  run:
+    dir: outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  job:
+    name: train

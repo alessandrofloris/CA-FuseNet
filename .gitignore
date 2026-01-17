@@ -55,15 +55,16 @@ ehthumbs.db
 # ----------------------------------------------------------------------
 
 # Datasets (Typically too large for version control)
-data/
-datasets/
-input/
-output/
+/data/
+/datasets/
+/input/
+/output/
+src/outputs/*
 
 # Trained Models and Checkpoints
 # Keep these out of VCS unless they are very small and essential.
 checkpoints/
-models/
+/models/
 runs/
 *.pth
 *.pt
