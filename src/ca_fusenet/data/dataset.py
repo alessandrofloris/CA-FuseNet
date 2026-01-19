@@ -84,11 +84,7 @@ class CAFuseNetDataset(Dataset):
         ind_sample = self.indicators_loader.get_sample(self.indicators_store, idx)
         pose_sample = self.joint_loader.get_sample(self.joint_store, idx)
         label_record = self.label_loader.get_sample(self.labels_store, idx)
-
-        frame = None
-        if isinstance(label_record.meta, dict):
-            frame = label_record.meta.get("frame")
-
+    
         if self.validate_samples:
             BBoxSequenceContract.from_array(
                 bbox_sample, coord_space=self.coord_space
@@ -101,7 +97,7 @@ class CAFuseNetDataset(Dataset):
         return {
             "sample_id": str(label_record.sample_id),
             "video_path": label_record.video_path,
-            "frame": frame,
+            "frame": label_record.frame,
             "label": label_record.label,
             "bbox_xywh": np.asarray(bbox_sample),
             "indicators": np.asarray(ind_sample),
