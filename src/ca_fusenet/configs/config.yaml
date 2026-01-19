@@ -1,5 +1,5 @@
 defaults:
-  - data: _schema
+  - data: ca_fusenet_dataset
   - model: ca_fusenet
   - encoder/video: r3d_18
   - encoder/pose: stgcn_lite

@@ -1,0 +1,10 @@
+_target_: ca_fusenet.data.dataset.CAFuseNetDataset
+root_dir: data
+bbox_file: bbox_store.npy
+indicators_file: indicators_store.npy
+joint_file: joint_store.npy
+label_file: labels_store.pkl
+mmap: true
+coord_space: pixel
+validate_stores: true
+validate_samples: false
