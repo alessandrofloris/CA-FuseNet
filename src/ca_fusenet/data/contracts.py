@@ -296,8 +296,8 @@ class BBoxStoreContract:
     ) -> "BBoxStoreContract":
         arr = np.asarray(bboxes)
         _ensure_float_dtype(arr, "BBoxStoreContract.bboxes")
-        if arr.dtype != np.float32:
-            arr = arr.astype(np.float32)
+        #if arr.dtype != np.float32:
+        #    arr = arr.astype(np.float32)
         obj = cls(arr, coord_space=coord_space)
         obj.validate()
         return obj
@@ -346,8 +346,8 @@ class IndicatorsStoreContract:
     ) -> "IndicatorsStoreContract":
         arr = np.asarray(values)
         _ensure_float_dtype(arr, "IndicatorsStoreContract.values")
-        if arr.dtype != np.float32:
-            arr = arr.astype(np.float32)
+        #if arr.dtype != np.float32:
+        #    arr = arr.astype(np.float32)
         obj = cls(arr, names=names)
         obj.validate()
         return obj
@@ -399,8 +399,8 @@ class JointStoreContract:
     ) -> "JointStoreContract":
         arr = np.asarray(joint)
         _ensure_float_dtype(arr, "JointStoreContract.joint")
-        if arr.dtype != np.float32:
-            arr = arr.astype(np.float32)
+        #if arr.dtype != np.float32:
+        #    arr = arr.astype(np.float32)
         obj = cls(arr, coord_space=coord_space)
         obj.validate()
         return obj
