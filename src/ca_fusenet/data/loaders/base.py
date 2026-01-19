@@ -27,9 +27,11 @@ def ensure_file(path: Path) -> None:
         raise LoaderError(f"Path is not a file: {path}")
 
 
-def load_npy(path: Path) -> np.ndarray:
+def load_npy(path: Path, mmap_mode: str | None = None) -> np.ndarray:
     ensure_file(path)
     try:
+        if mmap_mode is not None:
+            return np.load(path, mmap_mode=mmap_mode, allow_pickle=False)
         return np.load(path, allow_pickle=False)
     except Exception as exc:
         raise LoaderError(

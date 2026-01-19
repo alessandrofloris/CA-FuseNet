@@ -11,35 +11,82 @@ from .base import BaseLoader, LoaderError, load_pkl
 class LabelRecord:
     sample_id: str
     label: Any
-    video_path: str | None
-    meta: dict[str, Any]
+    video_path: str 
+    frame: int 
 
 
 class LabelLoader(BaseLoader):
-    """Load label/metadata records from *_label.pkl."""
+    """Load dataset-level label store from a tuple of lists."""
 
-    def load(self, rel_path: str | Path, sample_id: str | None = None) -> LabelRecord:
+    def load_store(
+        self, rel_path: str | Path
+    ) -> tuple[list[str], list[str], list[int], list[int]]:
         path = self.resolve(rel_path)
         data = load_pkl(path)
         if not isinstance(data, (tuple, list)):
             raise LoaderError(
-                f"Label record expected tuple/list with (sample_name, video_path, label, frame); "
+                "Label store expected tuple of 4 lists: "
+                "(sample_name, video_path, label, frame); "
                 f"got {type(data)} from {path}"
             )
-        try:
-            sample_name, video_path, label, frame = data
-        except ValueError as exc:
+        if len(data) != 4:
             raise LoaderError(
-                "Label record expected exactly 4 elements: "
-                "(sample_name, video_path, label, frame)"
-            ) from exc
+                "Label store expected exactly 4 elements: "
+                "(sample_name, video_path, label, frame); "
+                f"got len={len(data)} from {path}"
+            )
+        
+        if not isinstance(data, (tuple, list)) or len(data) != 4:
+            raise LoaderError(
+                "Label store expected tuple/list of 4 lists: "
+                "(sample_name_list, video_path_list, label_list, frame_list)"
+            )
+        sample_names, video_paths, labels, frames = data
 
-        if sample_id is None:
-            sample_id = str(sample_name)
+        for name, field in (
+            ("sample_name_list", sample_names),
+            ("video_path_list", video_paths),
+            ("label_list", labels),
+            ("frame_list", frames),
+        ):
+            if not isinstance(field, (list, tuple)):
+                raise LoaderError(
+                    f"Label store expected {name} as list/tuple; got {type(field)}"
+                )
 
-        video_path = None if video_path is None else str(video_path)
-        meta = {"frame": frame}
+        sample_names = list(sample_names)
+        video_paths = list(video_paths)
+        labels = list(labels)
+        frames = list(frames)
+        lengths = {
+            "sample_name_list": len(sample_names),
+            "video_path_list": len(video_paths),
+            "label_list": len(labels),
+            "frame_list": len(frames),
+        }
+        if len(set(lengths.values())) != 1:
+            raise LoaderError(
+                "Label store lists must have equal lengths; "
+                f"got lengths {lengths} from {path}"
+            )
+
+        return sample_names, video_paths, labels, frames
+
+    def get_sample(
+        self, store: tuple[list[str], list[str], list[int], list[int]], idx: int
+    ) -> LabelRecord:
+        sample_names, video_paths, labels, frames = store
+        if idx < 0 or idx >= len(sample_names):
+            raise LoaderError(
+                f"Label store index out of range: idx={idx}, N={len(sample_names)}"
+            )
+
+        sample_id = str(sample_names[idx])
+        raw_video = video_paths[idx]
+        video_path = None if raw_video is None else str(raw_video)
+        label = labels[idx]
+        frame = frames[idx]
 
         return LabelRecord(
-            sample_id=sample_id, label=label, video_path=video_path, meta=meta
+            sample_id=sample_id, label=label, video_path=video_path, frame=frame
         )
