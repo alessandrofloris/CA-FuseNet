@@ -91,7 +91,7 @@ def _run_epoch(
     return avg_loss, avg_acc
 
 
-@hydra.main(version_base=None, config_path="configs", config_name="config")
+@hydra.main(version_base=None, config_path="../configs", config_name="config")
 def main(cfg: DictConfig) -> None:
     seed = int(_select_cfg(cfg, "seed", 42))
     torch.manual_seed(seed)
