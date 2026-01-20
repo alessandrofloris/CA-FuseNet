@@ -31,12 +31,14 @@ class CAFuseNetDataset(Dataset):
         *,
         mmap: bool = True,
         coord_space: Literal["normalized", "pixel"] = "normalized",
+        num_classes: int,
         validate_stores: bool = True,
         validate_samples: bool = False,
     ) -> None:
         self.root_dir = Path(root_dir).expanduser()
         self.coord_space = coord_space
         self.validate_samples = validate_samples
+        self.num_classes = num_classes
 
         self.bbox_loader = BBoxLoader(self.root_dir)
         self.indicators_loader = IndicatorsLoader(self.root_dir)

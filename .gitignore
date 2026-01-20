@@ -58,8 +58,9 @@ ehthumbs.db
 /data/
 /datasets/
 /input/
-/output/
-src/outputs/*
+/outputs/
+src/outputs/
+src/ca_fusenet/data/data/
 
 # Trained Models and Checkpoints
 # Keep these out of VCS unless they are very small and essential.

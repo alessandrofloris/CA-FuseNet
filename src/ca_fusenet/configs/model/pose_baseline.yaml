@@ -1,2 +1,5 @@
 name: pose_baseline
-backbone: stgcn_lite
+in_channels: 3
+hidden_dim: 256
+dropout: 0.2
+pooling: mean
