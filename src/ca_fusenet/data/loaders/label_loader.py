@@ -26,22 +26,22 @@ class LabelLoader(BaseLoader):
         if not isinstance(data, (tuple, list)):
             raise LoaderError(
                 "Label store expected tuple of 4 lists: "
-                "(sample_name, video_path, label, frame); "
+                "(sample_names, labels, frames, video_paths); "
                 f"got {type(data)} from {path}"
             )
         if len(data) != 4:
             raise LoaderError(
                 "Label store expected exactly 4 elements: "
-                "(sample_name, video_path, label, frame); "
+                "(ssample_names, labels, frames, video_paths); "
                 f"got len={len(data)} from {path}"
             )
         
         if not isinstance(data, (tuple, list)) or len(data) != 4:
             raise LoaderError(
                 "Label store expected tuple/list of 4 lists: "
-                "(sample_name_list, video_path_list, label_list, frame_list)"
+                "(sample_names, labels, frames, video_paths)"
             )
-        sample_names, video_paths, labels, frames = data
+        sample_names, labels, frames, video_paths = data
 
         for name, field in (
             ("sample_name_list", sample_names),

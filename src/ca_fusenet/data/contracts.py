@@ -510,9 +510,13 @@ class LabelStoreContract:
             raise ContractError(
                 f"LabelStoreContract.video_paths expected str at index {idx}; got {type(value)}"
             )
-        non_int = _first_non_int(list(self.frames))
-        if non_int is not None:
-            idx, value = non_int
-            raise ContractError(
-                f"LabelStoreContract.frames expected int at index {idx}; got {type(value)}"
-            )
+        for i, f_list in enumerate(self.frames):
+            if not isinstance(f_list, (list, np.ndarray)):
+                raise ContractError(
+                    f"LabelStoreContract.frames expected list/array at index {i}; got {type(f_list)}"
+                )
+            if len(f_list) > 0 and not isinstance(f_list[0], (int, np.integer)):
+                raise ContractError(
+                    f"LabelStoreContract.frames sub-list at index {i} must contain ints"
+                )
+        
