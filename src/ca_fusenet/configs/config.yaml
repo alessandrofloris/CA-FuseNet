@@ -3,6 +3,7 @@ defaults:
   - model: ca_fusenet
   - encoder/video: r3d_18
   - encoder/pose: stgcn_lite
+  - training: default
   - _self_
 
 project: ca_fusenet
@@ -13,9 +14,6 @@ paths:
 
 logging:
   level: INFO
-
-training:
-  deterministic: false
 
 hydra:
   run:
