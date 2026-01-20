@@ -1,5 +1,5 @@
 _target_: ca_fusenet.data.dataset.CAFuseNetDataset
-root_dir: data
+root_dir: src/ca_fusenet/data/data/
 bbox_file: bbox_store.npy
 indicators_file: indicators_store.npy
 joint_file: joint_store.npy

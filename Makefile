@@ -11,6 +11,9 @@ dev:
 train:
 	$(PYTHON) -m ca_fusenet.scripts.train
 
+train_pose:
+	$(PYTHON) -m ca_fusenet.training.train_pose_baseline
+
 lint:
 	ruff check src
 
