@@ -1,3 +1,15 @@
+# config.yaml
+
+# Hydra root configuration for CaFuseNet project.
+# Composes the final config by selecting various sub-configurations.
+
+# ---------------------------------
+# This section tells Hydra which other .yaml files to read in the subfolders to build the 
+# final configuration. 
+
+# If you want to change the video encoder (for example), you don't need to modify this file. 
+# Just run a command from the terminal: python train.py encoder/video=vivit. 
+# Hydra will automatically replace the corresponding configuration snippet.
 defaults:
   - data: ca_fusenet_dataset
   - model: ca_fusenet
@@ -6,15 +18,23 @@ defaults:
   - training: default
   - _self_
 
+# ---------------------------------
+# Global parameters for the entire project.
 project: ca_fusenet
 seed: 42
 
 paths:
   output_dir: ${hydra:runtime.output_dir}
 
+# System log
 logging:
   level: INFO
 
+# ---------------------------------
+# Hydra runtime configuration.
+
+# Each time you launch a train, Hydra creates a folder 
+# with the date and time (for example: outputs/2026-01-20/14-30-05).
 hydra:
   run:
     dir: outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}

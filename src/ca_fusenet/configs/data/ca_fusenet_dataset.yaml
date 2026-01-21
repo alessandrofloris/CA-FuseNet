@@ -8,4 +8,4 @@ mmap: true
 coord_space: pixel
 num_classes: 37
 validate_stores: true
-validate_samples: false
+validate_samples: false 

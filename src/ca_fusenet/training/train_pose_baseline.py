@@ -61,30 +61,35 @@ def _run_epoch(
     total_correct = 0
     total_samples = 0
 
-    for batch in loader:
-        _validate_batch(batch)
-        pose = batch["pose"].to(device, non_blocking=True)
-        labels = batch["label"].to(device, non_blocking=True)
-        if labels.dtype != torch.long:
-            labels = labels.long()
-        if pose.shape[0] != labels.shape[0]:
-            raise ValueError(
-                f"Batch size mismatch: pose={pose.shape[0]} labels={labels.shape[0]}"
-            )
+    # Use torch.no_grad() context only during evaluation
+    from contextlib import nullcontext
+    context = nullcontext() if train else torch.no_grad()
 
-        if train and optimizer is not None:
-            optimizer.zero_grad(set_to_none=True)
-        logits = model(pose)
-        loss = criterion(logits, labels)
-        if train and optimizer is not None:
-            loss.backward()
-            optimizer.step()
+    with context:
+        for batch in loader:
+            _validate_batch(batch)
+            pose = batch["pose"].to(device, non_blocking=True)
+            labels = batch["label"].to(device, non_blocking=True)
+            if labels.dtype != torch.long:
+                labels = labels.long()
+            if pose.shape[0] != labels.shape[0]:
+                raise ValueError(
+                    f"Batch size mismatch: pose={pose.shape[0]} labels={labels.shape[0]}"
+                )
 
-        batch_size = labels.shape[0]
-        total_loss += loss.item() * batch_size
-        preds = logits.argmax(dim=1)
-        total_correct += (preds == labels).sum().item()
-        total_samples += batch_size
+            if train and optimizer is not None:
+                optimizer.zero_grad(set_to_none=True)
+            logits = model(pose)
+            loss = criterion(logits, labels)
+            if train and optimizer is not None:
+                loss.backward()
+                optimizer.step()
+
+            batch_size = labels.shape[0]
+            total_loss += loss.item() * batch_size
+            preds = logits.argmax(dim=1)
+            total_correct += (preds == labels).sum().item()
+            total_samples += batch_size
 
     avg_loss = total_loss / total_samples if total_samples else float("nan")
     avg_acc = total_correct / total_samples if total_samples else float("nan")
@@ -179,7 +184,7 @@ def main(cfg: DictConfig) -> None:
     criterion = nn.CrossEntropyLoss()
 
     best_val_acc = float("-inf")
-    best_path = Path("best_pose_baseline.pt")
+    best_path = Path(_select_cfg(cfg, "training.artifacts.best_pose_path", "artifacts/best_pose_baseline.pt"))
 
     for epoch in range(1, epochs + 1):
         train_loss, train_acc = _run_epoch(

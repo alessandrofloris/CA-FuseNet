@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from typing import Literal
+import logging
 
 import torch
 from torch import nn
 
+log = logging.getLogger(__name__)
 
 class PoseBaseline(nn.Module):
     """Minimal pose-only baseline with global pooling and a small MLP."""
@@ -24,6 +26,8 @@ class PoseBaseline(nn.Module):
             raise ValueError(f"pooling must be 'mean' or 'max'; got {pooling}")
         self.in_channels = in_channels
         self.pooling = pooling
+
+        # Neural architecture definition
         self.mlp = nn.Sequential(
             nn.Linear(in_channels, hidden_dim),
             nn.ReLU(),

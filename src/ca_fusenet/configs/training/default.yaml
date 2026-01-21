@@ -1,7 +1,10 @@
-epochs: 20
+epochs: 100
 lr: 1e-3
 weight_decay: 1e-2
 batch_size: 32
 num_workers: 0
 val_split: 0.1
 deterministic: false
+
+artifacts:
+  best_pose_path: "artifacts/best_pose_baseline.pt"
