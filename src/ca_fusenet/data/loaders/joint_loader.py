@@ -35,7 +35,7 @@ class JointLoader(BaseLoader):
     def get_sample(
         self, store: np.ndarray, idx: int, person_index: int = 0
     ) -> np.ndarray:
-        """Return one person's pose as (T, V, 3) from the dataset store."""
+        """Return one person's pose as (C, T, V) from the dataset store."""
         if store.ndim != 5 or store.shape[1] != 3:
             raise LoaderError(
                 "Joint store expected shape (N, 3, T, V, M); "
@@ -51,4 +51,4 @@ class JointLoader(BaseLoader):
                 f"person_index={person_index}, M={store.shape[4]}"
             )
         sample = store[idx, :, :, :, 0]
-        return np.transpose(sample, (1, 2, 0))
+        return sample
