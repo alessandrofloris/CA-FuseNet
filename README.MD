@@ -23,3 +23,7 @@ python -m ca_fusenet.scripts.train model=rgb_baseline
 - `src/ca_fusenet/scripts/train.py`: training entry point
 - `src/ca_fusenet/configs`: Hydra config tree
 - `src/ca_fusenet/utils`: shared utilities
+
+# TODO 
+
+- Modificare nel contract o nel dataset la shape dei batch di posa (B, T, V, C) => (B, C, T, V)
