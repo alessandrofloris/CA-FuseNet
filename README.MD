@@ -28,4 +28,4 @@ python -m ca_fusenet.scripts.train model=rgb_baseline
 
 - Creare una struttura di salvataggio degli artifacts dei modelli più strutturata
 - Configurazione modello pose only tramite hydra
-- Factory pattern per la funzione Dataset (modificare _target_ nel file di configurazione per puntare al classmethod che andremo a definire)
+- Reintrodurre validazione sample opzionale dentro __getitem__

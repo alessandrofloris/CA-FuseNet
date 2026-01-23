@@ -6,7 +6,7 @@ from typing import Any, Literal
 import numpy as np
 from torch.utils.data import Dataset
 
-from .contracts import (
+from ..contracts import (
     BBoxSequenceContract,
     BBoxStoreContract,
     IndicatorsContract,
@@ -15,10 +15,10 @@ from .contracts import (
     LabelStoreContract,
     PoseSequenceContract,
 )
-from .loaders import BBoxLoader, IndicatorsLoader, JointLoader, LabelLoader
+from ..loaders import BBoxLoader, IndicatorsLoader, JointLoader, LabelLoader
 
 
-class CAFuseNetDataset(Dataset):
+class ITWPOLIMI(Dataset):
     """Dataset serving per-sample data from dataset-level artifact stores."""
 
     def __init__(
@@ -32,7 +32,6 @@ class CAFuseNetDataset(Dataset):
         mmap: bool = True,
         coord_space: Literal["normalized", "pixel"] = "normalized",
         num_classes: int,
-        validate_stores: bool = True,
         validate_samples: bool = False,
     ) -> None:
         self.root_dir = Path(root_dir).expanduser()
