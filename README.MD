@@ -26,4 +26,6 @@ python -m ca_fusenet.scripts.train model=rgb_baseline
 
 # TODO 
 
-- Modificare nel contract o nel dataset la shape dei batch di posa (B, T, V, C) => (B, C, T, V)
+- Creare una struttura di salvataggio degli artifacts dei modelli più strutturata
+- Configurazione modello pose only tramite hydra
+- 

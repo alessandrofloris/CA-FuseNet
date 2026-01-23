@@ -25,7 +25,7 @@ def cafusenet_collate_fn(batch: list[dict[str, Any]]) -> dict[str, Any]:
                 raise KeyError(f"Missing key '{key}' in sample index {idx}")
 
     t_values = {
-        "pose": [sample["pose"].shape[0] for sample in batch],
+        "pose": [sample["pose"].shape[1] for sample in batch],
         "bbox_xywh": [sample["bbox_xywh"].shape[0] for sample in batch],
         "indicators": [sample["indicators"].shape[0] for sample in batch],
     }
@@ -37,9 +37,9 @@ def cafusenet_collate_fn(batch: list[dict[str, Any]]) -> dict[str, Any]:
         pose = sample["pose"]
         bbox = sample["bbox_xywh"]
         ind = sample["indicators"]
-        if pose.shape[-1] != 3:
+        if pose.shape[0] != 3:
             raise ValueError(
-                f"pose last dim expected 3; got shape={pose.shape} at sample index {idx}"
+                f"pose first dim expected 3; got shape={pose.shape} at sample index {idx}"
             )
         if bbox.shape[-1] != 4:
             raise ValueError(

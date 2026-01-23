@@ -1,0 +1,5 @@
+_target_: ca_fusenet.models.pose.baselines.stgcn_baseline.PoseSTGCNBaseline
+num_classes: 37
+in_channels: 3
+dropout_head: 0.2
+

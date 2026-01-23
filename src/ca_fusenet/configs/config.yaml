@@ -12,7 +12,7 @@
 # Hydra will automatically replace the corresponding configuration snippet.
 defaults:
   - data: ca_fusenet_dataset
-  - model: ca_fusenet
+  - model: pose_stgcn_baseline
   - encoder/video: r3d_18
   - encoder/pose: stgcn_lite
   - training: default

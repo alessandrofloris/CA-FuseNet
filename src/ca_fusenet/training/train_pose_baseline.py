@@ -10,7 +10,6 @@ from torch import nn
 from torch.utils.data import DataLoader, Subset
 
 from ca_fusenet.data.collate import cafusenet_collate_fn
-from ca_fusenet.models.pose_baseline import PoseBaseline
 
 
 def _select_cfg(cfg: DictConfig, key: str, default: Any) -> Any:
@@ -18,6 +17,11 @@ def _select_cfg(cfg: DictConfig, key: str, default: Any) -> Any:
     if value is None:
         return default
     return value
+
+def _get_model_cfg(cfg: DictConfig) -> DictConfig:
+    if "model" in cfg.model:
+        return cfg.model.model
+    return cfg.model
 
 
 def _get_data_cfg(cfg: DictConfig) -> DictConfig:
@@ -160,18 +164,13 @@ def main(cfg: DictConfig) -> None:
             "num_classes must be set in cfg.data.num_classes (and > 0) for training."
         )
 
-    hidden_dim = int(_select_cfg(cfg, "model.hidden_dim", 256))
-    dropout = float(_select_cfg(cfg, "model.dropout", 0.2))
-    pooling = _select_cfg(cfg, "model.pooling", "mean")
-    in_channels = int(_select_cfg(cfg, "model.in_channels", 3))
+    #hidden_dim = int(_select_cfg(cfg, "model.hidden_dim", 256))
+    #dropout = float(_select_cfg(cfg, "model.dropout", 0.2))
+    #pooling = _select_cfg(cfg, "model.pooling", "mean")
+    #in_channels = int(_select_cfg(cfg, "model.in_channels", 3))
 
-    model = PoseBaseline(
-        num_classes=int(num_classes),
-        in_channels=in_channels,
-        hidden_dim=hidden_dim,
-        dropout=dropout,
-        pooling=pooling,
-    )
+    model_cfg = _get_model_cfg(cfg)
+    model = hydra.utils.instantiate(model_cfg)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
