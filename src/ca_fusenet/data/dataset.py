@@ -40,9 +40,9 @@ class CAFuseNetDataset(Dataset):
         self.validate_samples = validate_samples
         self.num_classes = num_classes
 
-        self.bbox_loader = BBoxLoader(self.root_dir)
+        self.bbox_loader = BBoxLoader(self.root_dir, self.coord_space)
         self.indicators_loader = IndicatorsLoader(self.root_dir)
-        self.joint_loader = JointLoader(self.root_dir)
+        self.joint_loader = JointLoader(self.root_dir, self.coord_space)
         self.label_loader = LabelLoader(self.root_dir)
 
         self.bbox_store = self.bbox_loader.load_store(bbox_file, mmap=mmap)
@@ -50,25 +50,16 @@ class CAFuseNetDataset(Dataset):
         self.joint_store = self.joint_loader.load_store(joint_file, mmap=mmap)
         self.labels_store = self.label_loader.load_store(label_file)
 
-        if validate_stores:
-            BBoxStoreContract.from_array(
-                self.bbox_store, coord_space=self.coord_space
-            ).validate()
-            IndicatorsStoreContract.from_array(self.indicators_store).validate()
-            JointStoreContract.from_array(
-                self.joint_store, coord_space=self.coord_space
-            ).validate()
-            LabelStoreContract.from_tuple(self.labels_store).validate()
-
-        n_bbox = self.bbox_store.shape[0]
-        n_ind = self.indicators_store.shape[0]
-        n_joint = self.joint_store.shape[0]
-        n_lbl = len(self.labels_store[0])
+        n_bbox = self.bbox_store.n_samples
+        n_ind = self.indicators_store.n_samples
+        n_joint = self.joint_store.n_samples
+        n_lbl = self.labels_store.n_samples
         if len({n_bbox, n_ind, n_joint, n_lbl}) != 1:
             raise ValueError(
                 "N mismatch across stores: "
                 f"bbox={n_bbox}, indicators={n_ind}, joint={n_joint}, labels={n_lbl}"
             )
+        
         self.N = n_bbox
 
 
@@ -77,6 +68,7 @@ class CAFuseNetDataset(Dataset):
 
     def __getitem__(self, idx: int) -> dict[str, Any]:
         
+        # Index normalization & index error check
         if idx < 0:
             idx += self.N
         if idx < 0 or idx >= self.N:

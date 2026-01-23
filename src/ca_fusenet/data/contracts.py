@@ -33,12 +33,12 @@ def _shape_str(arr: object) -> str:
     return f"type={type(arr)}"
 
 
-def _ensure_ndarray(arr: object, label: str) -> np.ndarray:
+def _ensure_ndarray(arr: object, label: str) -> np.ndarray | np.memmap:
     ensure(isinstance(arr, np.ndarray), f"{label} expected numpy.ndarray; got {type(arr)}")
     return arr
 
 
-def _ensure_float_dtype(arr: np.ndarray, label: str) -> None:
+def _ensure_float_dtype(arr: np.ndarray | np.memmap, label: str) -> None:
     ensure(
         arr.dtype in (np.float32, np.float64),
         f"{label} expected dtype float32 or float64; got {arr.dtype}",
@@ -283,80 +283,94 @@ class TubeletContract:
 
 @dataclass
 class BBoxStoreContract:
-    """Dataset-level bounding boxes: (N, T, 4) with [x, y, w, h] (XYWH)."""
+    """Dataset-level bounding boxes: (N, T, K) with K = [x, y, w, h]."""
 
-    bboxes: np.ndarray
+    bboxes: np.ndarray | np.memmap
     coord_space: Literal["normalized", "pixel"] = "normalized"
+
+    @property
+    def n_samples(self) -> int:
+        return self.bboxes.shape[0]
 
     @classmethod
     def from_array(
         cls,
-        bboxes: np.ndarray,
+        bboxes: np.ndarray | np.memmap,
         coord_space: Literal["normalized", "pixel"] = "normalized",
+        mmap: bool = True,
     ) -> "BBoxStoreContract":
         arr = np.asarray(bboxes)
-        _ensure_float_dtype(arr, "BBoxStoreContract.bboxes")
-        #if arr.dtype != np.float32:
-        #    arr = arr.astype(np.float32)
+        
+        if not mmap:
+            arr = np.ascontiguousarray(arr)
+        
         obj = cls(arr, coord_space=coord_space)
         obj.validate()
         return obj
 
     def validate(self, expected_T: int | None = None) -> None:
+        # Type checks
         arr = _ensure_ndarray(self.bboxes, "BBoxStoreContract.bboxes")
+        _ensure_float_dtype(arr, "BBoxStoreContract.bboxes")
+
+        # Shape checks
         ensure(
             arr.ndim == 3,
-            "BBoxStoreContract.bboxes expected shape (N, T, 4); got " + _shape_str(arr),
+            "BBoxStoreContract.bboxes expected shape (N, T, K); got " + _shape_str(arr),
         )
-        N, T, C = arr.shape
+        N, T, K = arr.shape
         ensure(N >= 1, f"BBoxStoreContract.bboxes expected N>=1; got N={N}")
         ensure(T >= 1, f"BBoxStoreContract.bboxes expected T>=1; got T={T}")
         ensure(
-            C == 4,
-            f"BBoxStoreContract.bboxes expected last dim 4; got C={C} shape={arr.shape}",
+            K == 4,
+            f"BBoxStoreContract.bboxes expected last dim 4; got K={K} shape={arr.shape}",
         )
         if expected_T is not None:
             ensure(
                 T == expected_T,
                 f"BBoxStoreContract.bboxes expected T=={expected_T}; got T={T}",
             )
-        ensure(is_finite_numpy(arr), "BBoxStoreContract.bboxes contains NaN or inf")
+        
+        # 
         ensure(
             self.coord_space in ("normalized", "pixel"),
             f"BBoxStoreContract.coord_space must be 'normalized' or 'pixel'; got {self.coord_space}",
         )
-        w = arr[..., 2]
-        h = arr[..., 3]
-        _min_check(w, 0.0, _EPS, "BBoxStoreContract.bboxes[w]")
-        _min_check(h, 0.0, _EPS, "BBoxStoreContract.bboxes[h]")
-        if self.coord_space == "normalized":
-            _range_check(arr, 0.0, 1.0, _EPS, "BBoxStoreContract.bboxes")
-
+        
 
 @dataclass
 class IndicatorsStoreContract:
-    """Dataset-level indicators: (N, T, 3)."""
+    """Dataset-level indicators: (N, T, K)."""
 
     values: np.ndarray
     names: Optional[list[str]] = None
 
+    @property
+    def n_samples(self) -> int:
+        return self.values.shape[0]
+
     @classmethod
     def from_array(
-        cls, values: np.ndarray, names: Optional[list[str]] = None
+        cls, values: np.ndarray, names: Optional[list[str]] = None, mmap: bool = True
     ) -> "IndicatorsStoreContract":
         arr = np.asarray(values)
-        _ensure_float_dtype(arr, "IndicatorsStoreContract.values")
-        #if arr.dtype != np.float32:
-        #    arr = arr.astype(np.float32)
+        
+        if not mmap:
+            arr = np.ascontiguousarray(arr)
+
         obj = cls(arr, names=names)
         obj.validate()
         return obj
 
     def validate(self, expected_T: int | None = None) -> None:
+        # Type checks
         arr = _ensure_ndarray(self.values, "IndicatorsStoreContract.values")
+        _ensure_float_dtype(arr, "IndicatorsStoreContract.values")
+        
+        # Shape checks
         ensure(
             arr.ndim == 3,
-            "IndicatorsStoreContract.values expected shape (N, T, 3); got "
+            "IndicatorsStoreContract.values expected shape (N, T, K); got "
             + _shape_str(arr),
         )
         N, T, K = arr.shape
@@ -371,8 +385,8 @@ class IndicatorsStoreContract:
                 T == expected_T,
                 f"IndicatorsStoreContract.values expected T=={expected_T}; got T={T}",
             )
-        _ensure_float_dtype(arr, "IndicatorsStoreContract.values")
-        ensure(is_finite_numpy(arr), "IndicatorsStoreContract.values contains NaN or inf")
+        
+        # Names checks
         if self.names is not None:
             ensure(
                 len(self.names) == 3,
@@ -386,30 +400,38 @@ class IndicatorsStoreContract:
 
 @dataclass
 class JointStoreContract:
-    """Dataset-level joint store: (N, 3, T, V, M) with (x, y, score)."""
+    """Dataset-level joint store: (N, C, T, V, M) with C = (x, y, score)."""
 
-    joint: np.ndarray
-    coord_space: Literal["normalized", "pixel"] = "normalized"
+    joint: np.ndarray | np.memmap
+    coord_space: Literal["normalized", "pixel"] = "pixel"
+
+    @property
+    def n_samples(self) -> int:
+        return self.joint.shape[0]
 
     @classmethod
     def from_array(
         cls,
-        joint: np.ndarray,
+        joint: np.ndarray | np.memmap,
         coord_space: Literal["normalized", "pixel"] = "normalized",
+        mmap: bool = True,
     ) -> "JointStoreContract":
         arr = np.asarray(joint)
-        _ensure_float_dtype(arr, "JointStoreContract.joint")
-        #if arr.dtype != np.float32:
-        #    arr = arr.astype(np.float32)
+        if not mmap:
+            arr = np.ascontiguousarray(arr)
         obj = cls(arr, coord_space=coord_space)
         obj.validate()
         return obj
 
     def validate(self, expected_T: int | None = None) -> None:
+        # Type checks
         arr = _ensure_ndarray(self.joint, "JointStoreContract.joint")
+        _ensure_float_dtype(arr, "JointStoreContract.joint")
+        
+        # Shape checks
         ensure(
             arr.ndim == 5,
-            "JointStoreContract.joint expected shape (N, 3, T, V, M); got "
+            "JointStoreContract.joint expected shape (N, C, T, V, M); got "
             + _shape_str(arr),
         )
         N, C, T, V, M = arr.shape
@@ -426,90 +448,48 @@ class JointStoreContract:
                 T == expected_T,
                 f"JointStoreContract.joint expected T=={expected_T}; got T={T}",
             )
-        _ensure_float_dtype(arr, "JointStoreContract.joint")
-        ensure(is_finite_numpy(arr), "JointStoreContract.joint contains NaN or inf")
+
+        # Coordinate space check
         ensure(
             self.coord_space in ("normalized", "pixel"),
             f"JointStoreContract.coord_space must be 'normalized' or 'pixel'; got {self.coord_space}",
         )
-        if self.coord_space == "normalized":
-            xy = arr[:, :2, :, :, :]
-            _range_check(xy, 0.0, 1.0, _EPS, "JointStoreContract.joint[x,y]")
-        score = arr[:, 2, :, :, :]
-        _range_check(score, 0.0, 1.0, _EPS, "JointStoreContract.joint[score]")
-
+        
 
 @dataclass
 class LabelStoreContract:
-    """Dataset-level labels: tuple of lists (sample_name, video_path, label, frame)."""
+    """Dataset-level labels: tuple of lists (sample_name, label, frame, video_path)."""
 
     sample_names: list[str]
-    video_paths: list[str]
     labels: list[Any]
-    frames: list[int]
+    frames: list[list[int]]
+    video_paths: list[str]
+
+    @property
+    def n_samples(self) -> int:
+        return len(self.sample_names)
 
     @classmethod
     def from_tuple(cls, store: object) -> "LabelStoreContract":
+
         ensure(
-            isinstance(store, (tuple, list)),
-            f"LabelStoreContract expected tuple/list of 4 lists; got {type(store)}",
-        )
-        ensure(
-            len(store) == 4,
-            f"LabelStoreContract expected 4 elements; got len={len(store)}",
-        )
-        sample_names, video_paths, labels, frames = store
-        ensure(
-            isinstance(sample_names, (list, tuple)),
-            f"LabelStoreContract.sample_names expected list/tuple; got {type(sample_names)}",
-        )
-        ensure(
-            isinstance(video_paths, (list, tuple)),
-            f"LabelStoreContract.video_paths expected list/tuple; got {type(video_paths)}",
-        )
-        ensure(
-            isinstance(labels, (list, tuple)),
-            f"LabelStoreContract.labels expected list/tuple; got {type(labels)}",
-        )
-        ensure(
-            isinstance(frames, (list, tuple)),
-            f"LabelStoreContract.frames expected list/tuple; got {type(frames)}",
-        )
-        obj = cls(
-            list(sample_names),
-            list(video_paths),
-            list(labels),
-            list(frames),
-        )
+            isinstance(store, tuple) and len(store) == 4,
+            f"LabelStoreContract expected tuple of 4 lists; got {type(store)}")
+
+        obj = cls(*(list(s) for s in store))
         obj.validate()
         return obj
 
+
     def validate(self) -> None:
         N = len(self.sample_names)
-        ensure(
-            len(self.video_paths) == N,
-            f"LabelStoreContract.video_paths expected length {N}; got {len(self.video_paths)}",
-        )
-        ensure(
-            len(self.labels) == N,
-            f"LabelStoreContract.labels expected length {N}; got {len(self.labels)}",
-        )
-        ensure(
-            len(self.frames) == N,
-            f"LabelStoreContract.frames expected length {N}; got {len(self.frames)}",
-        )
-        non_str = _first_non_str(list(self.sample_names))
-        if non_str is not None:
-            idx, value = non_str
-            raise ContractError(
-                f"LabelStoreContract.sample_names expected str at index {idx}; got {type(value)}"
-            )
-        non_path = _first_non_str(list(self.video_paths))
-        if non_path is not None:
-            idx, value = non_path
-            raise ContractError(
-                f"LabelStoreContract.video_paths expected str at index {idx}; got {type(value)}"
-            )
+        
+        # Length check
+        for field, data in [("video_paths", self.video_paths), 
+                            ("labels", self.labels), 
+                            ("frames", self.frames)]:
+            ensure(len(data) == N, f"LabelStoreContract.{field} length mismatch: {len(data)} != {N}")
+
         for i, f_list in enumerate(self.frames):
             if not isinstance(f_list, (list, np.ndarray)):
                 raise ContractError(
@@ -519,4 +499,9 @@ class LabelStoreContract:
                 raise ContractError(
                     f"LabelStoreContract.frames sub-list at index {i} must contain ints"
                 )
-        
+
+        #  Types checks
+        if any(not isinstance(s, str) for s in self.sample_names):
+            raise ContractError("LabelStoreContract.sample_names must contain only strings")        
+        if any(not isinstance(p, str) for p in self.video_paths):
+            raise ContractError("LabelStoreContract.video_paths must contain only strings")

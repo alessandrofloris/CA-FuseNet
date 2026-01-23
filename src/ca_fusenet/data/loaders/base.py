@@ -27,7 +27,7 @@ def ensure_file(path: Path) -> None:
         raise LoaderError(f"Path is not a file: {path}")
 
 
-def load_npy(path: Path, mmap_mode: str | None = None) -> np.ndarray:
+def load_npy(path: Path, mmap_mode: str | None = None) -> np.ndarray | np.memmap:
     ensure_file(path)
     try:
         if mmap_mode is not None:
@@ -58,6 +58,10 @@ class BaseLoader(ABC):
         self.root: Path = Path(root).expanduser()
 
     def resolve(self, rel_path: str | Path) -> Path:
+        '''
+        Utility to convert a relative path into an absolute path based on a specific "root" directory. 
+        It ensures that the path is standardized.
+        '''
         rel = Path(rel_path)
         if rel.is_absolute():
             return rel
