@@ -6,15 +6,6 @@ from typing import Any, Literal
 import numpy as np
 from torch.utils.data import Dataset
 
-from ..contracts import (
-    BBoxSequenceContract,
-    BBoxStoreContract,
-    IndicatorsContract,
-    IndicatorsStoreContract,
-    JointStoreContract,
-    LabelStoreContract,
-    PoseSequenceContract,
-)
 from ..loaders import BBoxLoader, IndicatorsLoader, JointLoader, LabelLoader
 
 
@@ -65,6 +56,7 @@ class ITWPOLIMI(Dataset):
     def __len__(self) -> int:
         return self.N
 
+
     def __getitem__(self, idx: int) -> dict[str, Any]:
         
         # Index normalization & index error check
@@ -78,15 +70,6 @@ class ITWPOLIMI(Dataset):
         pose_sample = self.joint_loader.get_sample(self.joint_store, idx)
         label_record = self.label_loader.get_sample(self.labels_store, idx)
     
-        if self.validate_samples:
-            BBoxSequenceContract.from_array(
-                bbox_sample, coord_space=self.coord_space
-            ).validate()
-            IndicatorsContract.from_array(ind_sample).validate()
-            PoseSequenceContract.from_array(
-                pose_sample, coord_space=self.coord_space
-            ).validate()
-
         return {
             "sample_id": str(label_record.sample_id),
             "video_path": label_record.video_path,
