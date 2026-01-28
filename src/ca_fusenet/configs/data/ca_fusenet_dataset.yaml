@@ -3,6 +3,7 @@ root_dir: data/
 bbox_file: bbox_store.npy
 indicators_file: indicators_store.npy
 joint_file: joint_store.npy
+tublets_file: tublets_store.npy
 label_file: labels_store.pkl
 mmap: true
 coord_space: pixel

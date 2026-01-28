@@ -3,6 +3,7 @@ from .bbox_loader import BBoxLoader
 from .indicators_loader import IndicatorsLoader
 from .joint_loader import JointLoader
 from .label_loader import LabelLoader, LabelRecord
+from .tublets_loader import TubletsLoader
 
 __all__ = [
     "BaseLoader",
@@ -10,6 +11,7 @@ __all__ = [
     "BBoxLoader",
     "IndicatorsLoader",
     "JointLoader",
+    "TubletsLoader",
     "LabelLoader",
     "LabelRecord",
 ]

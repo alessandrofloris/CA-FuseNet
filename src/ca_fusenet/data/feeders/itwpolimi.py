@@ -6,7 +6,7 @@ from typing import Any, Literal
 import numpy as np
 from torch.utils.data import Dataset
 
-from ..loaders import BBoxLoader, IndicatorsLoader, JointLoader, LabelLoader
+from ..loaders import BBoxLoader, IndicatorsLoader, JointLoader, TubletsLoader, LabelLoader
 
 
 class ITWPOLIMI(Dataset):
@@ -18,10 +18,11 @@ class ITWPOLIMI(Dataset):
         bbox_file: str,
         indicators_file: str,
         joint_file: str,
+        tublets_file: str,
         label_file: str,
         *,
         mmap: bool = True,
-        coord_space: Literal["normalized", "pixel"] = "normalized",
+        coord_space: Literal["normalized", "pixel"] = "pixel",
         num_classes: int,
         validate_samples: bool = False,
     ) -> None:
@@ -33,21 +34,24 @@ class ITWPOLIMI(Dataset):
         self.bbox_loader = BBoxLoader(self.root_dir, self.coord_space)
         self.indicators_loader = IndicatorsLoader(self.root_dir)
         self.joint_loader = JointLoader(self.root_dir, self.coord_space)
+        self.tublets_loader = TubletsLoader(self.root_dir)
         self.label_loader = LabelLoader(self.root_dir)
 
         self.bbox_store = self.bbox_loader.load_store(bbox_file, mmap=mmap)
         self.indicators_store = self.indicators_loader.load_store(indicators_file, mmap=mmap)
         self.joint_store = self.joint_loader.load_store(joint_file, mmap=mmap)
+        self.tublets_store = self.tublets_loader.load_store(tublets_file, mmap=mmap)
         self.labels_store = self.label_loader.load_store(label_file)
 
         n_bbox = self.bbox_store.n_samples
         n_ind = self.indicators_store.n_samples
         n_joint = self.joint_store.n_samples
+        n_tublets = self.tublets_store.n_samples
         n_lbl = self.labels_store.n_samples
-        if len({n_bbox, n_ind, n_joint, n_lbl}) != 1:
+        if len({n_bbox, n_ind, n_joint, n_tublets, n_lbl}) != 1:
             raise ValueError(
                 "N mismatch across stores: "
-                f"bbox={n_bbox}, indicators={n_ind}, joint={n_joint}, labels={n_lbl}"
+                f"bbox={n_bbox}, indicators={n_ind}, joint={n_joint}, tublets={n_tublets}, labels={n_lbl}"
             )
         
         self.N = n_bbox
@@ -68,6 +72,7 @@ class ITWPOLIMI(Dataset):
         bbox_sample = self.bbox_loader.get_sample(self.bbox_store, idx)
         ind_sample = self.indicators_loader.get_sample(self.indicators_store, idx)
         pose_sample = self.joint_loader.get_sample(self.joint_store, idx)
+        tublet_sample = self.tublets_loader.get_sample(self.tublets_store, idx)
         label_record = self.label_loader.get_sample(self.labels_store, idx)
     
         return {
@@ -78,4 +83,5 @@ class ITWPOLIMI(Dataset):
             "bbox_xywh": np.asarray(bbox_sample),
             "indicators": np.asarray(ind_sample),
             "pose": np.asarray(pose_sample),
+            "tublet": np.asarray(tublet_sample),
         }

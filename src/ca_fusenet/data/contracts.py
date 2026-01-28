@@ -282,6 +282,59 @@ class TubeletContract:
 
 
 @dataclass
+class TubletsStoreContract:
+    """RGB tubelet frames: (N, C, T, H, W) with uint8 or float32 values."""
+
+    tublets: np.ndarray | np.memmap
+
+    @property
+    def n_samples(self) -> int:
+        return self.tublets.shape[0]
+
+    @classmethod
+    def from_array(
+        cls,
+        tublets: np.ndarray | np.memmap,
+        mmap: bool = True,
+    ) -> "TubletsStoreContract":
+        arr = np.asarray(tublets)
+        if not mmap:
+            arr = np.ascontiguousarray(arr)
+        obj = cls(arr)
+        obj.validate()
+        return obj
+
+    def validate(self, expected_T: int | None = None) -> None:
+        # Type checks
+        arr = _ensure_ndarray(self.tublets, "TubletsStoreContract.tublets")
+        ensure(
+            arr.dtype in (np.uint8, np.float32),
+            f"TubletsStoreContract.tublets expected dtype uint8 or float32; got {arr.dtype}",
+        )
+        
+        # Shape checks
+        ensure(
+            arr.ndim == 5,
+            "TubletsStoreContract.tublets expected shape (N, C, T, H, W); got "
+            + _shape_str(arr),
+        )
+        N, C, T, H, W = arr.shape
+        ensure(N >= 1, f"TubletsStoreContract.tublets expected N>=1; got N={N}")
+        ensure(T >= 1, f"TubletsStoreContract.tublets expected T>=1; got T={T}")
+        ensure(H >= 1, f"TubletsStoreContract.tublets expected H>=1; got H={H}")
+        ensure(W >= 1, f"TubletsStoreContract.tublets expected W>=1; got W={W}")
+        ensure(
+            C == 3,
+            f"TubletsStoreContract.tublets expected C==3; got C={C} shape={arr.shape}",
+        )
+        if expected_T is not None:
+            ensure(
+                T == expected_T,
+                f"TubletsStoreContract.tublets expected T=={expected_T}; got T={T}",
+            )
+
+
+@dataclass
 class BBoxStoreContract:
     """Dataset-level bounding boxes: (N, T, K) with K = [x, y, w, h]."""
 
