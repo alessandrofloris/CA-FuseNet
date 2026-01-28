@@ -29,3 +29,5 @@ python -m ca_fusenet.scripts.train model=rgb_baseline
 - Creare una struttura di salvataggio degli artifacts dei modelli più strutturata
 - Configurazione modello pose only tramite hydra
 - Reintrodurre validazione sample opzionale dentro __getitem__
+- Creare struttura di salvataggio migliore per il debug di estrazione di tublets
+- Aggiungere padding alle tublets
