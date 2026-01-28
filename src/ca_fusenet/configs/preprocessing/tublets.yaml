@@ -11,3 +11,6 @@ batch_size: 8
 resume: true
 num_workers: 0
 parallel: false
+debug_save_images: false
+debug_output_dir: "debug_tubelets"
+debug_max_samples: 100

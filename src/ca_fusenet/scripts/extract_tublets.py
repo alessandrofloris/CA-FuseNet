@@ -117,6 +117,42 @@ def _crop_and_resize(
     return cv2.resize(crop, (out_w, out_h), interpolation=cv2.INTER_LINEAR)
 
 
+def _save_tubelet_as_image(
+    tubelet: np.ndarray,
+    *,
+    sample_id: str,
+    output_dir: Path,
+    overlay_index: bool = True,
+) -> None:
+    if tubelet.ndim != 4 or tubelet.shape[0] != 3:
+        raise ValueError(f"tubelet expected shape (3, T, H, W); got {tubelet.shape}")
+
+    _, t, h, w = tubelet.shape
+    frames = []
+    for i in range(t):
+        frame = np.transpose(tubelet[:, i], (1, 2, 0)).copy()
+        if frame.dtype != np.uint8:
+            frame = np.clip(frame, 0.0, 1.0)
+            frame = (frame * 255.0).astype(np.uint8)
+        if overlay_index:
+            cv2.putText(
+                frame,
+                str(i),
+                (5, 18),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (255, 255, 255),
+                1,
+                cv2.LINE_AA,
+            )
+        frames.append(frame)
+
+    strip = np.concatenate(frames, axis=1)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    bgr = cv2.cvtColor(strip, cv2.COLOR_RGB2BGR)
+    cv2.imwrite(str(output_dir / f"{sample_id}.png"), bgr)
+
+
 def _estimate_sizes(num_samples: int, tubelet_len: int, out_h: int, out_w: int) -> dict[str, float]:
     bytes_per_sample = 3 * tubelet_len * out_h * out_w
     total_bytes = num_samples * bytes_per_sample
@@ -223,20 +259,25 @@ def main(cfg: DictConfig) -> None:
     print(OmegaConf.to_yaml(cfg))
     
     cfg = OmegaConf.to_container(cfg, resolve=True)
+    pre_cfg = cfg.get("preprocessing", cfg)
 
-    data_root = Path(to_absolute_path(cfg["preprocessing"]["data_root"])).expanduser()
-    video_root = Path(to_absolute_path(cfg["preprocessing"]["video_root"])).expanduser()
-    label_store_path = cfg["preprocessing"]["label_store"]
-    bbox_store_path = cfg["preprocessing"]["bbox_store"]
-    output_store_path = cfg["preprocessing"]["output_store"]
-    tubelet_len = int(cfg["preprocessing"]["tubelet_length"])
-    out_h = int(cfg["preprocessing"]["output_height"])
-    out_w = int(cfg["preprocessing"]["output_width"])
-    coord_space = str(cfg.get("bbox_coord_space", "pixel")).lower()
-    batch_size = max(1, int(cfg.get("batch_size", 8)))
-    resume = bool(cfg.get("resume", False))
-    num_workers = int(cfg.get("num_workers", 0))
-    parallel = bool(cfg.get("parallel", False))
+    data_root = Path(to_absolute_path(pre_cfg["data_root"])).expanduser()
+    video_root = Path(to_absolute_path(pre_cfg["video_root"])).expanduser()
+    label_store_path = pre_cfg["label_store"]
+    bbox_store_path = pre_cfg["bbox_store"]
+    output_store_path = pre_cfg["output_store"]
+    tubelet_len = int(pre_cfg["tubelet_length"])
+    out_h = int(pre_cfg["output_height"])
+    out_w = int(pre_cfg["output_width"])
+    coord_space = str(pre_cfg.get("bbox_coord_space", "pixel")).lower()
+    batch_size = max(1, int(pre_cfg.get("batch_size", 8)))
+    resume = bool(pre_cfg.get("resume", False))
+    num_workers = int(pre_cfg.get("num_workers", 0))
+    parallel = bool(pre_cfg.get("parallel", False))
+    debug_save_images = bool(pre_cfg.get("debug_save_images", False))
+    debug_output_dir = Path(str(pre_cfg.get("debug_output_dir", "debug_tubelets")))
+    debug_max_samples = int(pre_cfg.get("debug_max_samples", 100))
+    debug_overlay_index = bool(pre_cfg.get("debug_overlay_index", True))
     if num_workers <= 0:
         parallel = False
 
@@ -253,11 +294,14 @@ def main(cfg: DictConfig) -> None:
         raise ValueError(
             f"N mismatch between labels ({num_samples}) and bboxes ({bboxes.shape[0]})"
         )
+    sample_id_width = max(5, len(str(max(num_samples - 1, 0))))
 
     output_path = Path(output_store_path)
     if not output_path.is_absolute():
         output_path = data_root / output_path
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    if debug_save_images and not debug_output_dir.is_absolute():
+        debug_output_dir = data_root / debug_output_dir
 
     shape = (num_samples, 3, tubelet_len, out_h, out_w)
     estimates = _estimate_sizes(num_samples, tubelet_len, out_h, out_w)
@@ -325,21 +369,22 @@ def main(cfg: DictConfig) -> None:
         batch_end = min(batch_start + batch_size, num_samples)
         batch_indices = list(range(batch_start, batch_end))
         tasks = []
+        video_names: dict[int, str] = {}
         for idx in batch_indices:
             if done[idx] != 0:
                 continue
             record = label_loader.get_sample(labels_store, idx)
             video_rel = record.video_path
-            path = Path(video_rel)
-            video_rel = str(path.parent / f"b_{path.name}")
-            
             if video_rel is None:
                 errors.append({"idx": idx, "error": "Missing video_path"})
                 done[idx] = 1
                 tubelets[idx] = 0
                 continue
+            path = Path(video_rel)
+            video_rel = str(path.parent / f"b_{path.name}")
             frames = list(record.frame)
             bbox_seq = bboxes[idx]
+            video_names[idx] = Path(video_rel).stem
             tasks.append(
                 {
                     "idx": idx,
@@ -372,6 +417,14 @@ def main(cfg: DictConfig) -> None:
                         tubelets[idx] = 0
                     else:
                         tubelets[idx] = tubelet
+                        if debug_save_images and idx < debug_max_samples:
+                            sample_id = f"{idx:0{sample_id_width}d}_{video_names.get(idx, 'video')}"
+                            _save_tubelet_as_image(
+                                tubelet,
+                                sample_id=sample_id,
+                                output_dir=debug_output_dir,
+                                overlay_index=debug_overlay_index,
+                            )
                     done[idx] = 1
         else:
             for task in tasks:
@@ -390,6 +443,14 @@ def main(cfg: DictConfig) -> None:
                     tubelets[idx] = 0
                 else:
                     tubelets[idx] = tubelet
+                    if debug_save_images and idx < debug_max_samples:
+                        sample_id = f"{idx:0{sample_id_width}d}_{video_names.get(idx, 'video')}"
+                        _save_tubelet_as_image(
+                            tubelet,
+                            sample_id=sample_id,
+                            output_dir=debug_output_dir,
+                            overlay_index=debug_overlay_index,
+                        )
                 done[idx] = 1
 
         tubelets.flush()
