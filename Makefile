@@ -14,6 +14,9 @@ train:
 train_pose:
 	$(PYTHON) -m ca_fusenet.training.train_pose_baseline
 
+extract_tublets:
+	$(PYTHON) -m ca_fusenet.scripts.extract_tublets
+
 lint:
 	ruff check src
 

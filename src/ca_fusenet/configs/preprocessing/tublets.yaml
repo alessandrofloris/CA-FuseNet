@@ -1,0 +1,13 @@
+data_root: "data/"
+video_root: "data/videos/"
+label_store: "labels_store.pkl"
+bbox_store: "bbox_store.npy"
+output_store: "tublets_store.npy"
+tubelet_length: 16
+output_height: 112
+output_width: 112
+bbox_coord_space: "pixel"
+batch_size: 8
+resume: true
+num_workers: 0
+parallel: false
