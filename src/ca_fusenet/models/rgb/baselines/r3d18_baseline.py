@@ -15,11 +15,12 @@ class RGBOnlyBaseline(nn.Module):
     def __init__(
         self,
         *,
+        in_channels: int = 3,
         num_classes: int,
         pretrained: bool = True,
         freeze_backbone: bool = False,
         feature_dim: int | None = None,   # optional projection dim
-        dropout: float = 0.2,
+        dropout_head: float = 0.2,
     ) -> None:
         super().__init__()
         if num_classes <= 0:
@@ -29,12 +30,12 @@ class RGBOnlyBaseline(nn.Module):
             pretrained=pretrained,
             freeze_backbone=freeze_backbone,
             out_dim=feature_dim,
-            proj_dropout=dropout if feature_dim is not None else 0.0,
+            proj_dropout=dropout_head if feature_dim is not None else 0.0,
         )
 
         dv = self.encoder.out_dim
         self.head = nn.Sequential(
-            nn.Dropout(dropout),
+            nn.Dropout(dropout_head),
             nn.Linear(dv, num_classes),
         )
 

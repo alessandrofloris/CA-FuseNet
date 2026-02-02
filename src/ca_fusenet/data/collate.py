@@ -18,6 +18,7 @@ def cafusenet_collate_fn(batch: list[dict[str, Any]]) -> dict[str, Any]:
         "sample_id",
         "video_path",
         "frame",
+        "tublet",
     }
     for idx, sample in enumerate(batch):
         for key in required_keys:
@@ -37,6 +38,7 @@ def cafusenet_collate_fn(batch: list[dict[str, Any]]) -> dict[str, Any]:
         pose = sample["pose"]
         bbox = sample["bbox_xywh"]
         ind = sample["indicators"]
+        tublet = sample["tublet"]
         if pose.shape[0] != 3:
             raise ValueError(
                 f"pose first dim expected 3; got shape={pose.shape} at sample index {idx}"
@@ -49,6 +51,10 @@ def cafusenet_collate_fn(batch: list[dict[str, Any]]) -> dict[str, Any]:
             raise ValueError(
                 f"indicators last dim expected 3; got shape={ind.shape} at sample index {idx}"
             )
+        if tublet.shape[0] != 3:
+            raise ValueError(
+                f"tublet first dim expected 3; got shape={tublet.shape} at sample index {idx}"
+            )
 
     poses = np.ascontiguousarray(np.stack([sample["pose"] for sample in batch], axis=0))
     bboxes = np.ascontiguousarray(
@@ -57,7 +63,10 @@ def cafusenet_collate_fn(batch: list[dict[str, Any]]) -> dict[str, Any]:
     indicators = np.ascontiguousarray(
         np.stack([sample["indicators"] for sample in batch], axis=0)
     )
-
+    tublets = np.ascontiguousarray(
+        np.stack([sample["tublet"] for sample in batch], axis=0)
+    )
+    
     labels = torch.as_tensor([sample["label"] for sample in batch], dtype=torch.long)
     sample_ids = [sample["sample_id"] for sample in batch]
     video_paths = [sample["video_path"] for sample in batch]
@@ -67,6 +76,7 @@ def cafusenet_collate_fn(batch: list[dict[str, Any]]) -> dict[str, Any]:
         "pose": torch.as_tensor(poses, dtype=torch.float32),
         "bbox_xywh": torch.as_tensor(bboxes, dtype=torch.float32),
         "indicators": torch.as_tensor(indicators, dtype=torch.float32),
+        "tublet": torch.as_tensor(tublets, dtype=torch.float32),
         "label": labels,
         "sample_id": sample_ids,
         "video_path": video_paths,

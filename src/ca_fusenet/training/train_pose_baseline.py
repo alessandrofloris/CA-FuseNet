@@ -23,6 +23,8 @@ def _get_model_cfg(cfg: DictConfig) -> DictConfig:
         return cfg.model.model
     return cfg.model
 
+def _get_input_key(cfg: DictConfig) -> str:
+    return _select_cfg(cfg, "training.input_key", None)
 
 def _get_data_cfg(cfg: DictConfig) -> DictConfig:
     if "dataset" in cfg.data:
@@ -30,15 +32,15 @@ def _get_data_cfg(cfg: DictConfig) -> DictConfig:
     return cfg.data
 
 
-def _validate_batch(batch: dict[str, Any]) -> None:
-    required = {"pose", "label"}
+def _validate_batch(batch: dict[str, Any], input_key: str) -> None:
+    required = {input_key, "label"}
     missing = required - set(batch.keys())
     if missing:
         raise KeyError(f"Batch missing keys: {sorted(missing)}")
-    pose = batch["pose"]
+    x = batch[input_key]
     labels = batch["label"]
-    if pose.numel() == 0:
-        raise ValueError("Batch pose tensor is empty")
+    if x.numel() == 0:
+        raise ValueError("Batch input tensor is empty")
     if labels.numel() == 0:
         raise ValueError("Batch label tensor is empty")
     if labels.ndim != 1:
@@ -52,6 +54,7 @@ def _run_epoch(
     criterion: nn.Module,
     optimizer: torch.optim.Optimizer | None,
     train: bool,
+    input_key: str,
 ) -> tuple[float, float]:
     if loader is None:
         return float("nan"), float("nan")
@@ -69,21 +72,23 @@ def _run_epoch(
     from contextlib import nullcontext
     context = nullcontext() if train else torch.no_grad()
 
+    print(f"Input key used: {input_key}")
+
     with context:
         for batch in loader:
-            _validate_batch(batch)
-            pose = batch["pose"].to(device, non_blocking=True)
+            _validate_batch(batch, input_key)
+            x = batch[input_key].to(device, non_blocking=True)
             labels = batch["label"].to(device, non_blocking=True)
             if labels.dtype != torch.long:
                 labels = labels.long()
-            if pose.shape[0] != labels.shape[0]:
+            if x.shape[0] != labels.shape[0]:
                 raise ValueError(
-                    f"Batch size mismatch: pose={pose.shape[0]} labels={labels.shape[0]}"
+                    f"Batch size mismatch: x={x.shape[0]} labels={labels.shape[0]}"
                 )
 
             if train and optimizer is not None:
                 optimizer.zero_grad(set_to_none=True)
-            logits = model(pose)
+            logits = model(x)
             loss = criterion(logits, labels)
             if train and optimizer is not None:
                 loss.backward()
@@ -109,6 +114,10 @@ def main(cfg: DictConfig) -> None:
     dataset = hydra.utils.instantiate(data_cfg)
     if len(dataset) <= 0:
         raise ValueError("Dataset is empty; check data configuration and artifacts.")
+
+    input_key = _get_input_key(cfg)
+
+    print(f"Input key for training: {input_key}")
 
     batch_size = int(_select_cfg(cfg, "training.batch_size", 32))
     num_workers = int(_select_cfg(cfg, "training.num_workers", 0))
@@ -183,14 +192,14 @@ def main(cfg: DictConfig) -> None:
     criterion = nn.CrossEntropyLoss()
 
     best_val_acc = float("-inf")
-    best_path = Path(_select_cfg(cfg, "training.artifacts.best_pose_path", "artifacts/best_pose_baseline.pt"))
+    best_path = Path(_select_cfg(cfg, "training.artifacts.best_path", "artifacts/best_pose_baseline.pt"))
 
     for epoch in range(1, epochs + 1):
         train_loss, train_acc = _run_epoch(
-            model, train_loader, device, criterion, optimizer, train=True
+            model, train_loader, device, criterion, optimizer, train=True, input_key=input_key
         )
         val_loss, val_acc = _run_epoch(
-            model, val_loader, device, criterion, None, train=False
+            model, val_loader, device, criterion, None, train=False, input_key=input_key    
         )
 
         print(

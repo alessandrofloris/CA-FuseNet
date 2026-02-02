@@ -1,11 +1,11 @@
-input_key: "rgb"
+input_key: "tublet"
 epochs: 10
-lr: 1e-3
+lr: 1e-4
 weight_decay: 1e-2
-batch_size: 32
+batch_size: 8
 num_workers: 0
 val_split: 0.1
 deterministic: false
 
 artifacts:
-  best_path: "artifacts/best_pose_baseline.pt"
+  best_path: "artifacts/best_video_baseline.pt"
