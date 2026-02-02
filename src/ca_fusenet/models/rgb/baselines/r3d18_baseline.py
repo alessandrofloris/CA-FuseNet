@@ -15,11 +15,12 @@ class RGBOnlyBaseline(nn.Module):
     def __init__(
         self,
         *,
-        in_channels: int = 3,
         num_classes: int,
         pretrained: bool = True,
         freeze_backbone: bool = False,
-        feature_dim: int | None = None,   # optional projection dim
+        freeze_proj: bool = False,
+        feature_dim: int | None = None,   
+        dropout_proj: float = 0.1,
         dropout_head: float = 0.2,
     ) -> None:
         super().__init__()
@@ -29,8 +30,9 @@ class RGBOnlyBaseline(nn.Module):
         self.encoder = R3D18Encoder(
             pretrained=pretrained,
             freeze_backbone=freeze_backbone,
+            freeze_proj=freeze_proj,
             out_dim=feature_dim,
-            proj_dropout=dropout_head if feature_dim is not None else 0.0,
+            dropout_proj=dropout_proj if feature_dim is not None else 0.0,
         )
 
         dv = self.encoder.out_dim

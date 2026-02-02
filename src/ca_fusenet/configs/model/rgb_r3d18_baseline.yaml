@@ -1,8 +1,10 @@
 _target_: ca_fusenet.models.rgb.baselines.r3d18_baseline.RGBOnlyBaseline
 num_classes: 37
-in_channels: 3
+feature_dim: 512
 pretrained: true  
 freeze_backbone: false
+freeze_proj: false
+dropout_proj: 0.1
 dropout_head: 0.2
 
 

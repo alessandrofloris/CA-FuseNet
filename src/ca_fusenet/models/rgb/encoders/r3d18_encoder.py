@@ -20,8 +20,9 @@ class R3D18Encoder(nn.Module):
         pretrained: bool = True,
         weights: Optional[str] = "KINETICS400_V1",
         freeze_backbone: bool = False,
+        freeze_proj: bool = False,
         out_dim: Optional[int] = None,  # if you want a projection head
-        proj_dropout: float = 0.0,
+        dropout_proj: float = 0.0,
         pool: Literal["avg"] = "avg",
     ) -> None:
         super().__init__()
@@ -36,8 +37,7 @@ class R3D18Encoder(nn.Module):
 
         backbone = r3d_18(weights=w)
 
-        # r3d_18 has: stem -> layer1..4 -> avgpool -> fc
-        # We remove the final classification head.
+        # Remove the final classification head
         self.backbone = nn.Sequential(*list(backbone.children())[:-1])  # ends at avgpool, output [B,512,1,1,1]
         self.feature_dim = 512
 
@@ -46,15 +46,19 @@ class R3D18Encoder(nn.Module):
                 p.requires_grad = False
 
         self.proj = None
-        if out_dim is not None:
+        if out_dim is not None and out_dim != self.feature_dim:
             self.proj = nn.Sequential(
                 nn.Flatten(),
-                nn.Dropout(proj_dropout) if proj_dropout > 0 else nn.Identity(),
+                nn.Dropout(dropout_proj) if dropout_proj > 0 else nn.Identity(),
                 nn.Linear(self.feature_dim, out_dim),
             )
             self.out_dim = out_dim
         else:
             self.out_dim = self.feature_dim
+
+        if freeze_proj and self.proj is not None:
+            for p in self.proj.parameters():
+                p.requires_grad = False
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
