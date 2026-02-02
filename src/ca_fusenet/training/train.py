@@ -31,6 +31,16 @@ def _get_data_cfg(cfg: DictConfig) -> DictConfig:
         return cfg.data.dataset
     return cfg.data
 
+def _get_train_data_cfg(data_cfg: DictConfig) -> DictConfig:
+    if "train" in data_cfg:
+        return data_cfg.train
+    return None
+
+def _get_val_data_cfg(data_cfg: DictConfig) -> DictConfig:
+    if "val" in data_cfg:
+        return data_cfg.val
+    return None
+
 
 def _validate_batch(batch: dict[str, Any], input_key: str) -> None:
     required = {input_key, "label"}
@@ -72,8 +82,6 @@ def _run_epoch(
     from contextlib import nullcontext
     context = nullcontext() if train else torch.no_grad()
 
-    print(f"Input key used: {input_key}")
-
     with context:
         for batch in loader:
             _validate_batch(batch, input_key)
@@ -110,40 +118,59 @@ def main(cfg: DictConfig) -> None:
     seed = int(_select_cfg(cfg, "seed", 42))
     torch.manual_seed(seed)
 
-    data_cfg = _get_data_cfg(cfg)
-    dataset = hydra.utils.instantiate(data_cfg)
-    if len(dataset) <= 0:
-        raise ValueError("Dataset is empty; check data configuration and artifacts.")
-
     input_key = _get_input_key(cfg)
-
-    print(f"Input key for training: {input_key}")
 
     batch_size = int(_select_cfg(cfg, "training.batch_size", 32))
     num_workers = int(_select_cfg(cfg, "training.num_workers", 0))
     val_split = float(_select_cfg(cfg, "training.val_split", 0.1))
 
-    if val_split < 0.0 or val_split >= 1.0:
-        raise ValueError(f"training.val_split must be in [0, 1); got {val_split}")
+    data_cfg = _get_data_cfg(cfg)
+    train_data_cfg = _get_train_data_cfg(data_cfg)
+    val_data_cfg = _get_val_data_cfg(data_cfg)
 
-    n_samples = len(dataset)
-    if val_split > 0.0 and n_samples < 2:
-        raise ValueError("Dataset too small for train/val split (need N>=2).")
-
-    generator = torch.Generator().manual_seed(seed)
-    if val_split == 0.0:
-        train_ds = dataset
-        val_ds = None
+    if train_data_cfg is not None:
+        train_dataset = hydra.utils.instantiate(train_data_cfg)
     else:
-        val_size = max(1, int(n_samples * val_split))
-        if val_size >= n_samples:
-            val_size = n_samples - 1
-        train_size = n_samples - val_size
-        indices = torch.randperm(n_samples, generator=generator).tolist()
-        train_indices = indices[:train_size]
-        val_indices = indices[train_size:]
-        train_ds = Subset(dataset, train_indices)
-        val_ds = Subset(dataset, val_indices)
+        # fallback
+        data_cfg = _get_data_cfg(cfg)
+        train_dataset = hydra.utils.instantiate(data_cfg)
+
+    if len(train_dataset) <= 0:
+        raise ValueError("Training dataset is empty; check data configuration and artifacts.")
+
+    val_dataset = None
+    if val_data_cfg is not None:
+        val_dataset = hydra.utils.instantiate(val_data_cfg)
+        if len(val_dataset) <= 0:
+            raise ValueError("Val dataset is empty; check data configuration and artifacts.")
+
+
+    if val_dataset is None:
+
+        if val_split < 0.0 or val_split >= 1.0:
+            raise ValueError(f"training.val_split must be in [0, 1); got {val_split}")
+
+        n_samples = len(train_dataset)
+        if n_samples < 2:
+            raise ValueError("Dataset too small for train/val split (need N>=2).")
+    
+        if val_split == 0.0:
+            train_ds = train_dataset
+            val_ds = None
+        else:
+            generator = torch.Generator().manual_seed(seed)
+            val_size = max(1, int(n_samples * val_split))
+            if val_size >= n_samples:
+                val_size = n_samples - 1
+            train_size = n_samples - val_size
+            indices = torch.randperm(n_samples, generator=generator).tolist()
+            train_indices = indices[:train_size]
+            val_indices = indices[train_size:]
+            train_ds = Subset(train_dataset, train_indices)
+            val_ds = Subset(train_dataset, val_indices)
+    else:
+        train_ds = train_dataset
+        val_ds = val_dataset
 
     pin_memory = torch.cuda.is_available()
     train_loader = DataLoader(
@@ -165,19 +192,6 @@ def main(cfg: DictConfig) -> None:
             collate_fn=cafusenet_collate_fn,
         )
 
-    num_classes = _select_cfg(cfg, "data.num_classes", None)
-    if num_classes is None:
-        num_classes = _select_cfg(cfg, "data.dataset.num_classes", None)
-    if num_classes is None or int(num_classes) <= 0:
-        raise ValueError(
-            "num_classes must be set in cfg.data.num_classes (and > 0) for training."
-        )
-
-    #hidden_dim = int(_select_cfg(cfg, "model.hidden_dim", 256))
-    #dropout = float(_select_cfg(cfg, "model.dropout", 0.2))
-    #pooling = _select_cfg(cfg, "model.pooling", "mean")
-    #in_channels = int(_select_cfg(cfg, "model.in_channels", 3))
-
     model_cfg = _get_model_cfg(cfg)
     model = hydra.utils.instantiate(model_cfg)
 
@@ -192,7 +206,7 @@ def main(cfg: DictConfig) -> None:
     criterion = nn.CrossEntropyLoss()
 
     best_val_acc = float("-inf")
-    best_path = Path(_select_cfg(cfg, "training.artifacts.best_path", "artifacts/best_pose_baseline.pt"))
+    best_path = Path(_select_cfg(cfg, "training.artifacts.best_path", "artifacts/best_baseline.pt"))
 
     for epoch in range(1, epochs + 1):
         train_loss, train_acc = _run_epoch(

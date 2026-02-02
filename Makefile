@@ -12,10 +12,10 @@ train:
 	$(PYTHON) -m ca_fusenet.scripts.train
 
 train_pose:
-	$(PYTHON) -m ca_fusenet.training.train_pose_baseline model=pose_stgcn_baseline training=pose
+	$(PYTHON) -m ca_fusenet.training.train model=pose_stgcn_baseline training=pose
 
 train_video:
-	$(PYTHON) -m ca_fusenet.training.train_pose_baseline model=rgb_r3d18_baseline training=video
+	$(PYTHON) -m ca_fusenet.training.train model=rgb_r3d18_baseline training=video
 
 extract_tublets:
 	$(PYTHON) -m ca_fusenet.scripts.extract_tublets
