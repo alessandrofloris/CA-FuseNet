@@ -1,0 +1,3 @@
+checkpoint_path: artifacts/best_pose_baseline.pt
+batch_size: null
+num_workers: null

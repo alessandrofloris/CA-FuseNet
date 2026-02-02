@@ -16,6 +16,7 @@ defaults:
   - encoder/video: r3d_18
   - encoder/pose: stgcn_lite
   - training: video
+  - eval: default
   - _self_
 
 # ---------------------------------

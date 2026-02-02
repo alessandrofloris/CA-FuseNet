@@ -23,3 +23,16 @@ val:
   coord_space: pixel
   num_classes: 37
   validate_samples: false 
+
+test:
+  _target_: ca_fusenet.data.feeders.itwpolimi.ITWPOLIMI
+  root_dir: data/test/
+  bbox_file: bbox_store.npy
+  indicators_file: indicators_store.npy
+  joint_file: joint_store.npy
+  tublets_file: tublets_store.npy
+  label_file: labels_store.pkl
+  mmap: true
+  coord_space: pixel
+  num_classes: 37
+  validate_samples: false 

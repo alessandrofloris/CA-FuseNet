@@ -8,14 +8,14 @@ install:
 dev:
 	$(PYTHON) -m pip install -e ".[dev]"
 
-train:
-	$(PYTHON) -m ca_fusenet.scripts.train
-
 train_pose:
-	$(PYTHON) -m ca_fusenet.training.train model=pose_stgcn_baseline training=pose
+	$(PYTHON) -m ca_fusenet.scripts.train model=pose_stgcn_baseline training=pose
 
 train_video:
-	$(PYTHON) -m ca_fusenet.training.train model=rgb_r3d18_baseline training=video
+	$(PYTHON) -m ca_fusenet.scripts.train model=rgb_r3d18_baseline training=video
+
+eval_pose:
+	$(PYTHON) -m ca_fusenet.scripts.eval
 
 extract_tublets:
 	$(PYTHON) -m ca_fusenet.scripts.extract_tublets
