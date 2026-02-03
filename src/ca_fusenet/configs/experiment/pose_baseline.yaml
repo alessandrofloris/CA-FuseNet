@@ -1,0 +1,8 @@
+# @package _global_
+
+name: pose_baseline
+defaults:
+  - /data: ca_fusenet_dataset
+  - /model: pose_stgcn_baseline
+  - /training: pose
+  - /eval: default

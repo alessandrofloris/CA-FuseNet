@@ -11,12 +11,7 @@
 # Just run a command from the terminal: python train.py encoder/video=vivit. 
 # Hydra will automatically replace the corresponding configuration snippet.
 defaults:
-  - data: ca_fusenet_dataset
-  - model: rgb_r3d18_baseline
-  - encoder/video: r3d_18
-  - encoder/pose: stgcn_lite
-  - training: video
-  - eval: default
+  - experiment: pose_baseline
   - _self_
 
 # ---------------------------------

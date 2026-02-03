@@ -1,0 +1,8 @@
+# @package _global_
+
+name: video_baseline
+defaults:
+  - /data: ca_fusenet_dataset
+  - /model: rgb_r3d18_baseline
+  - /training: video
+  - /eval: default

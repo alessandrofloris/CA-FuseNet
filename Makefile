@@ -9,13 +9,13 @@ dev:
 	$(PYTHON) -m pip install -e ".[dev]"
 
 train_pose:
-	$(PYTHON) -m ca_fusenet.scripts.train model=pose_stgcn_baseline training=pose
+	$(PYTHON) -m ca_fusenet.scripts.train experiment=pose_baseline
 
 train_video:
-	$(PYTHON) -m ca_fusenet.scripts.train model=rgb_r3d18_baseline training=video
+	$(PYTHON) -m ca_fusenet.scripts.train experiment=video_baseline
 
 eval_pose:
-	$(PYTHON) -m ca_fusenet.scripts.eval
+	$(PYTHON) -m ca_fusenet.scripts.eval experiment=pose_baseline
 
 extract_tublets:
 	$(PYTHON) -m ca_fusenet.scripts.extract_tublets
