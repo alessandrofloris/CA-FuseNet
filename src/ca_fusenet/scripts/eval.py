@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import logging
 import hydra
 from omegaconf import DictConfig, OmegaConf
 import torch
@@ -17,6 +18,8 @@ from ca_fusenet.utils.engine import (
     run_epoch,
     select_cfg,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _load_checkpoint(path: Path) -> dict[str, Any]:
@@ -70,9 +73,28 @@ def main(cfg: DictConfig) -> None:
     if checkpoint_path is None:
         raise ValueError("eval.checkpoint_path is required.")
 
+    logger.info("eval.config=%s", OmegaConf.to_container(cfg.eval, resolve=True))
+    logger.info("eval.checkpoint_path=%s", checkpoint_path)
+
     checkpoint = _load_checkpoint(Path(checkpoint_path))
     saved_cfg = _restore_cfg(checkpoint)
     _inject_test_cfg(saved_cfg, cfg)
+
+    model_cfg = get_model_cfg(saved_cfg)
+    data_cfg = get_data_cfg(saved_cfg)
+
+    logger.info(
+        "checkpoint.training=%s",
+        OmegaConf.to_container(saved_cfg.training, resolve=True),
+    )
+    logger.info(
+        "checkpoint.model=%s",
+        OmegaConf.to_container(model_cfg, resolve=True),
+    )
+    logger.info(
+        "checkpoint.data=%s",
+        OmegaConf.to_container(data_cfg, resolve=True) if data_cfg is not None else None,
+    )
 
     seed = int(select_cfg(saved_cfg, "seed", 42))
     torch.manual_seed(seed)
@@ -81,14 +103,13 @@ def main(cfg: DictConfig) -> None:
     if input_key is None:
         raise ValueError("training.input_key is required in the checkpoint config.")
 
-    model_cfg = get_model_cfg(saved_cfg)
     model = hydra.utils.instantiate(model_cfg)
     model.load_state_dict(checkpoint["model_state"])
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
+    logger.info("device=%s", device)
 
-    data_cfg = get_data_cfg(saved_cfg)
     if data_cfg is None:
         raise ValueError("No data configuration found in the checkpoint config.")
     dataset_cfg, split_name = _resolve_eval_dataset_cfg(data_cfg)
@@ -98,7 +119,10 @@ def main(cfg: DictConfig) -> None:
             f"{split_name} dataset is empty; check data configuration and artifacts."
         )
     if split_name != "test":
-        print(f"warning: no test split configured; using {split_name} split for evaluation.")
+        logger.warning(
+            "no test split configured; using %s split for evaluation",
+            split_name,
+        )
 
     batch_size = int(
         select_cfg(
@@ -114,6 +138,11 @@ def main(cfg: DictConfig) -> None:
             select_cfg(saved_cfg, "training.num_workers", 0),
         )
     )
+    logger.info(
+        "eval: batch_size=%d num_workers=%d",
+        batch_size,
+        num_workers,
+    )
 
     test_loader = build_dataloader(
         test_dataset,
@@ -123,11 +152,11 @@ def main(cfg: DictConfig) -> None:
     )
 
     criterion = nn.CrossEntropyLoss()
-    test_loss, test_acc = run_epoch(
+    test_metrics = run_epoch(
         model, test_loader, device, criterion, None, train=False, input_key=input_key
     )
 
-    print(f"test_loss={test_loss:.4f} test_acc={test_acc:.4f}")
+    logger.info("%s", test_metrics.prefixed("test_"))
 
 
 if __name__ == "__main__":

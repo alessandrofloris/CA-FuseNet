@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+import logging
 from typing import Any
 
 from omegaconf import DictConfig, OmegaConf
@@ -8,6 +10,17 @@ from torch import nn
 from torch.utils.data import DataLoader
 
 from ca_fusenet.data.collate import cafusenet_collate_fn
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class EpochMetrics:
+    loss: float
+    acc: float
+
+    def prefixed(self, prefix: str) -> str:
+        return f"{prefix}loss={self.loss:.4f} {prefix}acc={self.acc:.4f}"
 
 
 def select_cfg(cfg: DictConfig, key: str, default: Any) -> Any:
@@ -84,9 +97,10 @@ def run_epoch(
     optimizer: torch.optim.Optimizer | None,
     train: bool,
     input_key: str,
-) -> tuple[float, float]:
+) -> EpochMetrics:
     if loader is None:
-        return float("nan"), float("nan")
+        logger.debug("run_epoch skipped because loader is None")
+        return EpochMetrics(float("nan"), float("nan"))
 
     if train:
         model.train()
@@ -129,4 +143,4 @@ def run_epoch(
 
     avg_loss = total_loss / total_samples if total_samples else float("nan")
     avg_acc = total_correct / total_samples if total_samples else float("nan")
-    return avg_loss, avg_acc
+    return EpochMetrics(avg_loss, avg_acc)
