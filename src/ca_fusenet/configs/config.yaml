@@ -21,6 +21,11 @@ seed: 42
 
 paths:
   output_dir: ${hydra:runtime.output_dir}
+  ckpt_dir: ${paths.output_dir}/checkpoints
+  artifacts_dir: ${paths.output_dir}/artifacts
+  eval_dir: ${paths.artifacts_dir}/eval
+  plots_dir: ${paths.artifacts_dir}/plots
+  reports_dir: ${paths.artifacts_dir}/reports
 
 # System log
 logging:
@@ -33,6 +38,9 @@ logging:
 # with the date and time (for example: outputs/2026-01-20/14-30-05).
 hydra:
   run:
-    dir: outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    dir: outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}_${experiment_name}
+  sweep:
+    dir: sweeps/${now:%Y-%m-%d}/${now:%H-%M-%S}_${experiment_name}
+    subdir: ${hydra.job.num}
   job:
     name: train
