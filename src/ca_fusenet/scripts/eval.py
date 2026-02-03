@@ -27,11 +27,13 @@ def _load_checkpoint(path: Path) -> dict[str, Any]:
         raise FileNotFoundError(f"Checkpoint not found: {path}")
     checkpoint = torch.load(path, map_location="cpu")
     if not isinstance(checkpoint, dict):
-        raise TypeError("Checkpoint is not a dict; expected keys 'model_state' and 'cfg'.")
+        raise TypeError("Checkpoint is not a dict.")
     if "model_state" not in checkpoint:
         raise KeyError("Checkpoint missing key: model_state")
     if "cfg" not in checkpoint:
         raise KeyError("Checkpoint missing key: cfg")
+    if "epoch" not in checkpoint:
+        logger.warning("Checkpoint missing key: epoch")
     return checkpoint
 
 

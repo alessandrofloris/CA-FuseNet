@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import logging
 from typing import Any
+from pathlib import Path
 
 from omegaconf import DictConfig, OmegaConf
 import torch
@@ -23,12 +24,36 @@ class EpochMetrics:
         return f"{prefix}loss={self.loss:.4f} {prefix}acc={self.acc:.4f}"
 
 
+def ensure_output_dirs(cfg) -> dict[str, Path]:
+    out = Path(cfg.paths.output_dir)
+
+    ckpt_dir = Path(cfg.paths.ckpt_dir)
+    eval_dir = Path(cfg.paths.eval_dir)
+
+    ckpt_dir.mkdir(parents=True, exist_ok=True)
+    eval_dir.mkdir(parents=True, exist_ok=True)
+
+    return {
+        "out": out,
+        "ckpt": ckpt_dir,
+        "eval": eval_dir,
+    }
+
+def dump_json(path: Path, obj) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as f:
+        json.dump(obj, f, indent=2, ensure_ascii=False)
+
 def select_cfg(cfg: DictConfig, key: str, default: Any) -> Any:
     value = OmegaConf.select(cfg, key, default=None)
     if value is None:
         return default
     return value
 
+def get_training_cfg(cfg: DictConfig) -> DictConfig:
+    if "training" in cfg.training:
+        return cfg.training.training
+    return cfg.training
 
 def get_model_cfg(cfg: DictConfig) -> DictConfig:
     if "model" in cfg.model:

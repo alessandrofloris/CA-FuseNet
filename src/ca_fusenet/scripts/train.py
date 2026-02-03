@@ -11,57 +11,56 @@ from torch.utils.data import Subset
 
 from ca_fusenet.utils.engine import (
     build_dataloader,
+    get_training_cfg,
     get_data_cfg,
-    get_input_key,
     get_model_cfg,
     get_split_data_cfg,
     run_epoch,
     select_cfg,
+    ensure_output_dirs,   
 )
 
 logger = logging.getLogger(__name__)
 
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
 def main(cfg: DictConfig) -> None:
+
+    # Set random seed for reproducibility
     seed = int(select_cfg(cfg, "seed", 42))
     torch.manual_seed(seed)
 
-    input_key = get_input_key(cfg)
+    # Training configuration
+    training_cfg = get_training_cfg(cfg)
 
-    batch_size = int(select_cfg(cfg, "training.batch_size", 32))
-    num_workers = int(select_cfg(cfg, "training.num_workers", 0))
-    val_split = float(select_cfg(cfg, "training.val_split", 0.1))
-    lr = float(select_cfg(cfg, "training.lr", 1e-3))
-    weight_decay = float(select_cfg(cfg, "training.weight_decay", 1e-2))
-    epochs = int(select_cfg(cfg, "training.epochs", 5))
-    best_path = Path(select_cfg(cfg, "training.artifacts.best_path", "artifacts/best_baseline.pt"))
+    input_key = str(select_cfg(training_cfg, "input_key", "unknown"))
+    batch_size = int(select_cfg(training_cfg, "batch_size", 32))
+    num_workers = int(select_cfg(training_cfg, "num_workers", 0))
+    val_split = float(select_cfg(training_cfg, "val_split", 0.1))
+    lr = float(select_cfg(training_cfg, "lr", 1e-3))
+    weight_decay = float(select_cfg(training_cfg, "weight_decay", 1e-2))
+    epochs = int(select_cfg(training_cfg, "epochs", 5))
 
+    # Output directories (checkpoints, metrics, eval)
+    out_dirs = ensure_output_dirs(cfg)
+    best_path = out_dirs["ckpt"] / "best.pt"
+
+    # Data configuration
     data_cfg = get_data_cfg(cfg)
     train_data_cfg = get_split_data_cfg(data_cfg, "train")
     val_data_cfg = get_split_data_cfg(data_cfg, "val")
+
+    # Model configuration
     model_cfg = get_model_cfg(cfg)
 
-    logger.info(
-        "config: project=%s output_dir=%s seed=%d input_key=%s epochs=%d batch_size=%d "
-        "num_workers=%d val_split=%.4f lr=%.4f weight_decay=%.4f",
-        select_cfg(cfg, "project", "unknown"),
-        select_cfg(cfg, "paths.output_dir", "unknown"),
-        seed,
-        input_key,
-        epochs,
-        batch_size,
-        num_workers,
-        val_split,
-        lr,
-        weight_decay,
-    )
+    # Logging configurations
+    logger.info("config.training=%s", OmegaConf.to_container(training_cfg, resolve=True))
     logger.info("config.model=%s", OmegaConf.to_container(model_cfg, resolve=True))
     logger.info("config.data=%s", OmegaConf.to_container(data_cfg, resolve=True))
 
+    # Dataset instantiation
     if train_data_cfg is not None:
         train_dataset = hydra.utils.instantiate(train_data_cfg)
     else:
-        # fallback
         train_dataset = hydra.utils.instantiate(data_cfg)
 
     if len(train_dataset) <= 0:
@@ -74,7 +73,7 @@ def main(cfg: DictConfig) -> None:
         if len(val_dataset) <= 0:
             raise ValueError("Val dataset is empty; check data configuration and artifacts.")
 
-    # If no validation dataset provided, split train dataset
+    # If no validation dataset is provided, split the train dataset
     if val_dataset is None:
         if val_split < 0.0 or val_split >= 1.0:
             raise ValueError(f"training.val_split must be in [0, 1); got {val_split}")
@@ -101,6 +100,7 @@ def main(cfg: DictConfig) -> None:
         train_ds = train_dataset
         val_ds = val_dataset
 
+    # Train data loaders
     pin_memory = torch.cuda.is_available()
     train_loader = build_dataloader(
         train_ds,
@@ -109,6 +109,8 @@ def main(cfg: DictConfig) -> None:
         num_workers=num_workers,
         pin_memory=pin_memory,
     )
+
+    # Validation data loader
     val_loader = None
     if val_ds is not None:
         val_loader = build_dataloader(
@@ -119,21 +121,24 @@ def main(cfg: DictConfig) -> None:
             pin_memory=pin_memory,
         )
 
+    # Model instantiation and setup
     model = hydra.utils.instantiate(model_cfg)
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
     logger.info("device=%s", device)
 
+    # Optimizer and loss function setup
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
     criterion = nn.CrossEntropyLoss()
 
+    # Training loop
     best_val_acc = float("-inf")
-
     for epoch in range(1, epochs + 1):
+        
         train_metrics = run_epoch(
             model, train_loader, device, criterion, optimizer, train=True, input_key=input_key
         )
+        
         val_metrics = run_epoch(
             model, val_loader, device, criterion, None, train=False, input_key=input_key
         )
@@ -146,15 +151,19 @@ def main(cfg: DictConfig) -> None:
             val_metrics.prefixed("val_"),
         )
 
+        # Checkpointing best model
         if val_loader is not None and val_metrics.acc > best_val_acc:
             best_val_acc = val_metrics.acc
+            
             torch.save(
                 {
                     "model_state": model.state_dict(),
                     "cfg": OmegaConf.to_container(cfg, resolve=True),
+                    "epoch": epoch,
                 },
                 best_path,
             )
+            
             logger.info(
                 "checkpoint=best path=%s val_acc=%.4f",
                 best_path,
