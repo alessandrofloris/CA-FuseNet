@@ -66,40 +66,29 @@ def main(cfg: DictConfig) -> None:
     if len(train_dataset) <= 0:
         raise ValueError("Training dataset is empty; check data configuration and artifacts.")
 
-    # Instantiate validation dataset if specified
-    val_dataset = None
-    if val_data_cfg is not None:
-        val_dataset = hydra.utils.instantiate(val_data_cfg)
-        if len(val_dataset) <= 0:
-            raise ValueError("Val dataset is empty; check data configuration and artifacts.")
+    # Split the train dataset
+    if val_split < 0.0 or val_split >= 1.0:
+        raise ValueError(f"training.val_split must be in [0, 1); got {val_split}")
 
-    # If no validation dataset is provided, split the train dataset
-    if val_dataset is None:
-        if val_split < 0.0 or val_split >= 1.0:
-            raise ValueError(f"training.val_split must be in [0, 1); got {val_split}")
+    n_samples = len(train_dataset)
+    if n_samples < 2:
+        raise ValueError("Dataset too small for train/val split (need N>=2).")
 
-        n_samples = len(train_dataset)
-        if n_samples < 2:
-            raise ValueError("Dataset too small for train/val split (need N>=2).")
-
-        if val_split == 0.0:
-            train_ds = train_dataset
-            val_ds = None
-        else:
-            generator = torch.Generator().manual_seed(seed)
-            val_size = max(1, int(n_samples * val_split))
-            if val_size >= n_samples:
-                val_size = n_samples - 1
-            train_size = n_samples - val_size
-            indices = torch.randperm(n_samples, generator=generator).tolist()
-            train_indices = indices[:train_size]
-            val_indices = indices[train_size:]
-            train_ds = Subset(train_dataset, train_indices)
-            val_ds = Subset(train_dataset, val_indices)
-    else:
+    if val_split == 0.0:
         train_ds = train_dataset
-        val_ds = val_dataset
-
+        val_ds = None
+    else:
+        generator = torch.Generator().manual_seed(seed)
+        val_size = max(1, int(n_samples * val_split))
+        if val_size >= n_samples:
+            val_size = n_samples - 1
+        train_size = n_samples - val_size
+        indices = torch.randperm(n_samples, generator=generator).tolist()
+        train_indices = indices[:train_size]
+        val_indices = indices[train_size:]
+        train_ds = Subset(train_dataset, train_indices)
+        val_ds = Subset(train_dataset, val_indices)
+    
     # Train data loaders
     pin_memory = torch.cuda.is_available()
     train_loader = build_dataloader(
