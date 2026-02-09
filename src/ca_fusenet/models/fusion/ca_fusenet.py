@@ -20,7 +20,7 @@ class CaFuseNet(nn.Module):
         gate_hidden: int = 64,
         d_fused: int = 256,
         n_indicators: int = 3,
-        dropout: float = 0.3,
+        dropout_gate: float = 0.3,
         num_classes: int = 37,
     ) -> None:
         super().__init__()
@@ -34,7 +34,7 @@ class CaFuseNet(nn.Module):
             gate_hidden=gate_hidden,
             d_fused=d_fused,
             n_indicators=n_indicators,
-            dropout=dropout,
+            dropout=dropout_gate,
         )
         self.classification_head = nn.Linear(d_fused, num_classes)
 

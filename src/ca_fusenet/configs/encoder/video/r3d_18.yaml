@@ -1,2 +1,7 @@
-name: r3d_18
-pretrained: false
+_target_: ca_fusenet.models.rgb.encoders.R3D18Encoder
+pretrained: true
+weights: KINETICS400_V1
+freeze_backbone: false
+freeze_proj: false
+out_dim: none
+dropout_proj: 0.0

@@ -23,7 +23,7 @@ class R3D18Encoder(nn.Module):
         freeze_proj: bool = False,
         out_dim: Optional[int] = None,  # if you want a projection head
         dropout_proj: float = 0.0,
-        pool: Literal["avg"] = "avg",
+        #pool: Literal["avg"] = "avg",
     ) -> None:
         super().__init__()
 
@@ -38,7 +38,7 @@ class R3D18Encoder(nn.Module):
         backbone = r3d_18(weights=w)
 
         # Remove the final classification head
-        self.backbone = nn.Sequential(*list(backbone.children())[:-1])  # ends at avgpool, output [B,512,1,1,1]
+        self.backbone = nn.Sequential(*list(backbone.children())[:-1])  
         self.feature_dim = 512
 
         if freeze_backbone:

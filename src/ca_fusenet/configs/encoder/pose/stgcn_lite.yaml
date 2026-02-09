@@ -1,2 +1,13 @@
-name: stgcn_lite
-pretrained: false
+_target_: ca_fusenet.models.pose.encoders.PoseSTGCNEncoder
+in_channels: 3
+num_joints: 17
+embed_dim: 256
+strategy: "uniform"
+max_hop: 1
+dilation: 1
+temporal_kernel_size: 9
+dropout: 0.5
+edge_importance: false
+use_data_bn: true
+channels: [64, 64, 64, 64, 128, 128, 128, 256, 256, 256]
+strides: [1, 1, 1, 1, 2, 1, 1, 2, 1, 1]
