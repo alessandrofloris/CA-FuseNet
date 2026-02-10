@@ -1,0 +1,10 @@
+# @package _global_
+
+experiment_name: pose_baseline
+defaults:
+  - /data: ca_fusenet_dataset
+  - /model: ca_fusenet
+  - /encoder/video@video_encoder: r3d_18
+  - /encoder/pose@pose_encoder: stgcn_lite   
+  - /training: ca_fusenet
+  - /eval: default

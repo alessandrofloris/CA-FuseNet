@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import torch
 import torch.nn as nn
+from typing import Optional
 
 from ...stgcn.backbone import STGCNBackbone
 
@@ -19,6 +20,7 @@ class PoseSTGCNEncoder(nn.Module):
         in_channels: int = 3,
         num_joints: int = 17,
         embed_dim: int = 256,
+        d_output: Optional[int] = None,
         strategy: str = "uniform",
         max_hop: int = 1,
         dilation: int = 1,

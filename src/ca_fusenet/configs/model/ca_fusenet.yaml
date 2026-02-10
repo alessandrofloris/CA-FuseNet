@@ -1,11 +1,11 @@
-_target_: ca_fusenet.models.CaFuseNet
+_target_: ca_fusenet.models.fusion.ca_fusenet.CaFuseNet
 d_video: 512
 d_pose: 256
 d_common: 128
 gate_hidden: 64
 d_fused: 256
 n_indicators: 3
-dropout_gate: 0.3
+dropout: 0.3
 num_classes: 37
 
 

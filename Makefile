@@ -13,6 +13,9 @@ train_pose:
 
 train_video:
 	$(PYTHON) -m ca_fusenet.scripts.train experiment=video_baseline
+	
+train_cafusenet:
+	$(PYTHON) -m ca_fusenet.scripts.train_ca_fusenet experiment=ca_fusenet
 
 eval_pose:
 	$(PYTHON) -m ca_fusenet.scripts.eval experiment=pose_baseline

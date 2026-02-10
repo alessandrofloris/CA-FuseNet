@@ -1,7 +1,8 @@
-_target_: ca_fusenet.models.pose.encoders.PoseSTGCNEncoder
+_target_: ca_fusenet.models.pose.encoders.stgcn_encoder.PoseSTGCNEncoder
 in_channels: 3
 num_joints: 17
 embed_dim: 256
+d_output: 256 #Attenzione: nell'encoder non viene uttilizzata (per ora è hard wired a 256)
 strategy: "uniform"
 max_hop: 1
 dilation: 1

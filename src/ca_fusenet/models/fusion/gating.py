@@ -38,6 +38,7 @@ class CrowdAwareGating(nn.Module):
         v_gate = self.video_proj(f_video)
         p_gate = self.pose_proj(f_pose)
 
+        o = o.mean(dim=1) # ATTENZIONE, da spostare nella collate
         z = torch.cat((v_gate, p_gate, o), dim=1)
         z = self.gate_norm(z)
         alpha = self.gate_mlp(z)
