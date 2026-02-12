@@ -31,11 +31,11 @@ class RGBOnlyBaseline(nn.Module):
             pretrained=pretrained,
             freeze_backbone=freeze_backbone,
             freeze_proj=freeze_proj,
-            out_dim=feature_dim,
+            d_output=feature_dim,
             dropout_proj=dropout_proj if feature_dim is not None else 0.0,
         )
 
-        dv = self.encoder.out_dim
+        dv = self.encoder.d_output
         self.head = nn.Sequential(
             nn.Dropout(dropout_head),
             nn.Linear(dv, num_classes),

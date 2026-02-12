@@ -1,8 +1,11 @@
 input_key: "tublet"
-epochs: 10
+epochs: 15
 lr: 1e-4
 weight_decay: 1e-2
 batch_size: 8
 num_workers: 0
 val_split: 0.1
 deterministic: false
+
+# Early stopping
+patience: 7
