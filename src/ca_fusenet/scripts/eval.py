@@ -1,25 +1,102 @@
 from __future__ import annotations
 
+import json
+import math
 from pathlib import Path
 from typing import Any
 
 import logging
 import hydra
+import matplotlib.pyplot as plt
+import numpy as np
 from omegaconf import DictConfig, OmegaConf
+from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix
 import torch
 from torch import nn
 
 from ca_fusenet.utils.engine import (
     build_dataloader,
+    ensure_output_dirs,
     get_data_cfg,
     get_input_key,
     get_model_cfg,
     get_split_data_cfg,
     run_epoch,
     select_cfg,
+    validate_batch,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _to_json_float(value: float) -> float | None:
+    if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+        return None
+    return float(value)
+
+
+def _collect_predictions(
+    model: nn.Module,
+    loader,
+    device: torch.device,
+    input_key: str,
+) -> tuple[list[int], list[int]]:
+    model.eval()
+    all_labels: list[int] = []
+    all_preds: list[int] = []
+
+    with torch.no_grad():
+        for batch in loader:
+            validate_batch(batch, input_key)
+            x = batch[input_key].to(device, non_blocking=True)
+            labels = batch["label"].to(device, non_blocking=True)
+            if labels.dtype != torch.long:
+                labels = labels.long()
+            logits = model(x)
+            preds = logits.argmax(dim=1)
+            all_labels.extend(labels.detach().cpu().tolist())
+            all_preds.extend(preds.detach().cpu().tolist())
+
+    return all_labels, all_preds
+
+
+def _save_confusion_matrix(
+    labels: list[int],
+    preds: list[int],
+    *,
+    num_classes: int,
+    out_npy_path: Path,
+    out_plot_path: Path,
+) -> None:
+    cm = confusion_matrix(
+        labels,
+        preds,
+        labels=list(range(num_classes)),
+        normalize="true",
+    )
+    np.save(out_npy_path, cm)
+
+    cm = (cm *100).round(0).astype(int)
+
+    fig, ax = plt.subplots(figsize=(15, 13))
+    display = ConfusionMatrixDisplay(
+        confusion_matrix=cm,
+        display_labels=list(range(num_classes)),
+    )
+    display.plot(
+        ax=ax,
+        cmap="Blues",
+        values_format="d",
+        colorbar=True,
+        xticks_rotation="vertical",
+    )
+    ax.tick_params(axis='both', which='major', labelsize=8)
+    for text in display.text_.ravel():
+        text.set_fontsize(7)
+    ax.set_title("Evaluation Confusion Matrix (Row-Normalized)")
+    fig.tight_layout()
+    fig.savefig(out_plot_path, dpi=300)
+    plt.close(fig)
 
 
 def _load_checkpoint(path: Path) -> dict[str, Any]:
@@ -75,6 +152,11 @@ def main(cfg: DictConfig) -> None:
     if checkpoint_path is None:
         raise ValueError("eval.checkpoint_path is required.")
 
+    out_dirs = ensure_output_dirs(cfg)
+    metrics_path = out_dirs["out"] / "metrics_eval.json"
+    cm_npy_path = out_dirs["out"] / "confusion_matrix_eval.npy"
+    cm_plot_path = out_dirs["out"] / "confusion_matrix_eval.png"
+
     logger.info("eval.config=%s", OmegaConf.to_container(cfg.eval, resolve=True))
     logger.info("eval.checkpoint_path=%s", checkpoint_path)
 
@@ -106,6 +188,7 @@ def main(cfg: DictConfig) -> None:
         raise ValueError("training.input_key is required in the checkpoint config.")
 
     model = hydra.utils.instantiate(model_cfg)
+    num_classes = int(select_cfg(model_cfg, "num_classes", 37))
     model.load_state_dict(checkpoint["model_state"])
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -159,6 +242,31 @@ def main(cfg: DictConfig) -> None:
     )
 
     logger.info("%s", test_metrics.prefixed("test_"))
+
+    eval_labels, eval_preds = _collect_predictions(
+        model=model,
+        loader=test_loader,
+        device=device,
+        input_key=input_key,
+    )
+    _save_confusion_matrix(
+        labels=eval_labels,
+        preds=eval_preds,
+        num_classes=num_classes,
+        out_npy_path=cm_npy_path,
+        out_plot_path=cm_plot_path,
+    )
+    logger.info("saved_confusion_matrix npy=%s plot=%s", cm_npy_path, cm_plot_path)
+
+    metrics_payload = {
+        "split": split_name,
+        "loss": _to_json_float(test_metrics.loss),
+        "acc": _to_json_float(test_metrics.acc),
+        "macro_f1": _to_json_float(test_metrics.macro_f1),
+    }
+    with metrics_path.open("w", encoding="utf-8") as f:
+        json.dump(metrics_payload, f, indent=2)
+    logger.info("saved_metrics path=%s", metrics_path)
 
 
 if __name__ == "__main__":

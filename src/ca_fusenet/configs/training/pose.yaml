@@ -1,8 +1,11 @@
 input_key: "pose"
-epochs: 20
+epochs: 30
 lr: 1e-3
 weight_decay: 1e-2
 batch_size: 32
 num_workers: 0
 val_split: 0.1
 deterministic: false
+
+# Early stopping
+patience: 7

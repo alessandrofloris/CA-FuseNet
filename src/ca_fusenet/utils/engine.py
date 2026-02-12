@@ -21,9 +21,14 @@ logger = logging.getLogger(__name__)
 class EpochMetrics:
     loss: float
     acc: float
+    macro_f1: float
 
     def prefixed(self, prefix: str) -> str:
-        return f"{prefix}loss={self.loss:.4f} {prefix}acc={self.acc:.4f}"
+        return (
+            f"{prefix}loss={self.loss:.4f} "
+            f"{prefix}acc={self.acc:.4f} "
+            f"{prefix}f1={self.macro_f1:.4f}"
+        )
 
 
 def ensure_output_dirs(cfg) -> dict[str, Path]:
@@ -181,7 +186,7 @@ def run_epoch(
 ) -> EpochMetrics:
     if loader is None:
         logger.debug("run_epoch skipped because loader is None")
-        return EpochMetrics(float("nan"), float("nan"))
+        return EpochMetrics(float("nan"), float("nan"), float("nan"))
 
     if train:
         model.train()
@@ -191,6 +196,8 @@ def run_epoch(
     total_loss = 0.0
     total_correct = 0
     total_samples = 0
+    all_preds: list[int] = []
+    all_labels: list[int] = []
 
     context = nullcontext() if train else torch.no_grad()
 
@@ -219,10 +226,13 @@ def run_epoch(
             preds = logits.argmax(dim=1)
             total_correct += (preds == labels).sum().item()
             total_samples += batch_size
+            all_preds.extend(preds.detach().cpu().tolist())
+            all_labels.extend(labels.detach().cpu().tolist())
 
     avg_loss = total_loss / total_samples if total_samples else float("nan")
     avg_acc = total_correct / total_samples if total_samples else float("nan")
-    return EpochMetrics(avg_loss, avg_acc)
+    macro_f1 = float(f1_score(all_labels, all_preds, average="macro", zero_division=0))
+    return EpochMetrics(avg_loss, avg_acc, macro_f1)
 
 def run_epoch_fusion(
     model: nn.Module,

@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import json
 import logging
+import math
 
 import hydra
+import matplotlib.pyplot as plt
+import numpy as np
 from omegaconf import DictConfig, OmegaConf
+from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix
 import torch
 from torch import nn
 from torch.utils.data import DataLoader, Subset
@@ -24,6 +29,88 @@ from ca_fusenet.utils.engine import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _to_json_float(value: float) -> float | None:
+    if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+        return None
+    return float(value)
+
+
+def _collect_val_predictions_fusion(
+    model: nn.Module,
+    loader: DataLoader,
+    device: torch.device,
+) -> tuple[list[int], list[int]]:
+    model.eval()
+    all_labels: list[int] = []
+    all_preds: list[int] = []
+
+    with torch.no_grad():
+        for batch in loader:
+            required_keys = {"tublet", "pose", "indicators", "label"}
+            missing = required_keys - set(batch.keys())
+            if missing:
+                raise KeyError(f"Batch missing keys: {sorted(missing)}")
+
+            tublet = batch["tublet"].to(device, non_blocking=True)
+            pose = batch["pose"].to(device, non_blocking=True)
+            indicators = batch["indicators"].to(device, non_blocking=True)
+            labels = batch["label"].to(device, non_blocking=True)
+            if labels.dtype != torch.long:
+                labels = labels.long()
+
+            output = model(
+                video_input=tublet,
+                pose_input=pose,
+                occlusion_indicators=indicators,
+            )
+            logits = output["logits"]
+            preds = logits.argmax(dim=1)
+
+            all_labels.extend(labels.detach().cpu().tolist())
+            all_preds.extend(preds.detach().cpu().tolist())
+
+    return all_labels, all_preds
+
+
+def _save_confusion_matrix(
+    labels: list[int],
+    preds: list[int],
+    *,
+    num_classes: int,
+    out_npy_path,
+    out_plot_path,
+) -> None:
+    cm = confusion_matrix(
+        labels,
+        preds,
+        labels=list(range(num_classes)),
+        normalize="true",
+    )
+    np.save(out_npy_path, cm)
+
+    cm = (cm *100).round(0).astype(int)
+
+    fig, ax = plt.subplots(figsize=(15, 13))
+    display = ConfusionMatrixDisplay(
+        confusion_matrix=cm,
+        display_labels=list(range(num_classes)),
+    )
+    display.plot(
+        ax=ax,
+        cmap="Blues",
+        values_format="d",
+        colorbar=True,
+        xticks_rotation="vertical",
+    )
+    ax.tick_params(axis='both', which='major', labelsize=8)
+    for text in display.text_.ravel():
+        text.set_fontsize(7)
+    ax.set_title("Validation Confusion Matrix (Best Model, Row-Normalized)")
+    fig.tight_layout()
+    fig.savefig(out_plot_path, dpi=200)
+    plt.close(fig)
 
 
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
@@ -47,6 +134,9 @@ def main(cfg: DictConfig) -> None:
     # Output directories (checkpoints, metrics, eval)
     out_dirs = ensure_output_dirs(cfg)
     best_path = out_dirs["ckpt"] / "best.pt"
+    metrics_path = out_dirs["out"] / "metrics_train_val.json"
+    cm_npy_path = out_dirs["out"] / "val_confusion_matrix_best.npy"
+    cm_plot_path = out_dirs["out"] / "val_confusion_matrix_best.png"
 
     # Data configuration
     data_cfg = get_data_cfg(cfg)
@@ -163,7 +253,9 @@ def main(cfg: DictConfig) -> None:
 
     # Training loop
     best_val_f1 = float("-inf")
+    best_epoch = -1
     epochs_without_improvement = 0
+    metrics_history: list[dict] = []
     for epoch in range(1, epochs + 1):
         current_encoder_lr = 0.0 if epoch <= freeze_encoder_epochs else lr_encoder
         if epoch == freeze_encoder_epochs + 1:
@@ -212,9 +304,30 @@ def main(cfg: DictConfig) -> None:
             optimizer.param_groups[0]["lr"],
         )
 
+        metrics_history.append(
+            {
+                "epoch": epoch,
+                "train": {
+                    "loss": _to_json_float(train_metrics["loss"]),
+                    "accuracy": _to_json_float(train_metrics["accuracy"]),
+                    "macro_f1": _to_json_float(train_metrics["macro_f1"]),
+                    "mean_alpha": _to_json_float(train_metrics["mean_alpha"]),
+                    "std_alpha": _to_json_float(train_metrics["std_alpha"]),
+                },
+                "val": {
+                    "loss": _to_json_float(val_metrics["loss"]),
+                    "accuracy": _to_json_float(val_metrics["accuracy"]),
+                    "macro_f1": _to_json_float(val_metrics["macro_f1"]),
+                    "mean_alpha": _to_json_float(val_metrics["mean_alpha"]),
+                    "std_alpha": _to_json_float(val_metrics["std_alpha"]),
+                },
+            }
+        )
+
         # Checkpointing best model based on validation macro-F1 score
         if val_metrics["macro_f1"] > best_val_f1:
             best_val_f1 = val_metrics["macro_f1"]
+            best_epoch = epoch
             epochs_without_improvement = 0
 
             torch.save(
@@ -237,6 +350,32 @@ def main(cfg: DictConfig) -> None:
                     best_val_f1,
                 )
                 break
+
+    metrics_payload = {
+        "best_epoch": best_epoch if best_epoch >= 1 else None,
+        "best_val_macro_f1": _to_json_float(best_val_f1),
+        "history": metrics_history,
+    }
+    with metrics_path.open("w", encoding="utf-8") as f:
+        json.dump(metrics_payload, f, indent=2)
+    logger.info("saved_metrics path=%s", metrics_path)
+
+    if best_epoch >= 1 and best_path.exists():
+        checkpoint = torch.load(best_path, map_location=device)
+        model.load_state_dict(checkpoint["model_state_dict"])
+        val_labels, val_preds = _collect_val_predictions_fusion(
+            model=model,
+            loader=val_loader,
+            device=device,
+        )
+        _save_confusion_matrix(
+            labels=val_labels,
+            preds=val_preds,
+            num_classes=num_classes,
+            out_npy_path=cm_npy_path,
+            out_plot_path=cm_plot_path,
+        )
+        logger.info("saved_confusion_matrix npy=%s plot=%s", cm_npy_path, cm_plot_path)
 
 
 if __name__ == "__main__":
