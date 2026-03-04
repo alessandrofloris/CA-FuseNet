@@ -64,3 +64,40 @@ class ITWPolimiClassMapping:
             "other": [0, 1, 2, 3, 4, 5, 6]
         }
         return groups
+
+    def get_base_and_modifier(self, index):
+        """
+        Parses a class index into (base_action, modifier).
+        """
+        class_name = self.get_class_name(index)
+        if class_name == "Unknown":
+            return "unknown", None
+
+        if "While" in class_name:
+            base, modifier = class_name.split("While", 1)
+            return base.lower(), modifier.lower()
+
+        if class_name.endswith("Together"):
+            base = class_name[: -len("Together")]
+            return base.lower(), "together"
+
+        return class_name.lower(), None
+
+    def get_all_base_actions(self):
+        """Returns sorted unique base actions across all classes."""
+        base_actions = {self.get_base_and_modifier(idx)[0] for idx in self._mapping}
+        return sorted(base_actions)
+
+    def get_all_modifiers(self):
+        """Returns sorted unique modifiers across all classes (excluding None)."""
+        modifiers = {
+            modifier
+            for idx in self._mapping
+            for _, modifier in [self.get_base_and_modifier(idx)]
+            if modifier is not None
+        }
+        return sorted(modifiers)
+
+    def map_predictions_to_base(self, predictions):
+        """Maps class indices to base-action strings."""
+        return [self.get_base_and_modifier(int(idx))[0] for idx in predictions]

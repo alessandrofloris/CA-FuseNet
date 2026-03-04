@@ -260,6 +260,7 @@ def main(cfg: DictConfig) -> None:
     cm_plot_path = out_dirs["reports"] / "confusion_matrix_eval.png"
     cm_raw_npy_path = out_dirs["reports"] / "confusion_matrix_raw.npy"
     per_class_metrics_csv_path = out_dirs["reports"] / "per_class_metrics.csv"
+    predictions_path = out_dirs["reports"] / "predictions.npy"
 
     logger.info("eval.config=%s", OmegaConf.to_container(cfg.eval, resolve=True))
     logger.info("eval.checkpoint_path=%s", checkpoint_path)
@@ -390,6 +391,7 @@ def main(cfg: DictConfig) -> None:
     }
     with metrics_path.open("w", encoding="utf-8") as f:
         json.dump(metrics_payload, f, indent=2)
+    np.save(predictions_path, np.stack([eval_labels, eval_preds], axis=1))
     logger.info("saved_metrics path=%s", metrics_path)
 
 

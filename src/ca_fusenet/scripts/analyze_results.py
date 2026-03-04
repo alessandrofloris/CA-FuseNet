@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, f1_score
 
 from ca_fusenet.utils.class_mapping import ITWPolimiClassMapping
 
@@ -55,6 +56,18 @@ class ExperimentData:
     metrics: dict[str, Any] | None
     per_class: pd.DataFrame | None
     confusion_raw: np.ndarray | None
+    predictions: np.ndarray | None
+
+
+@dataclass
+class HierarchicalResult:
+    experiment_name: str
+    base_actions: list[str]
+    base_confusion_normalized: np.ndarray
+    base_metrics: pd.DataFrame
+    modifier_metrics: pd.DataFrame
+    modifier_breakdown: pd.DataFrame
+    summary: pd.DataFrame
 
 
 def _slugify(name: str) -> str:
@@ -148,6 +161,25 @@ def _read_confusion_raw(path: Path) -> np.ndarray | None:
     return matrix
 
 
+def _read_predictions(path: Path) -> np.ndarray | None:
+    if not path.exists():
+        LOGGER.warning("Missing predictions file (hierarchical analysis skipped): %s", path)
+        return None
+    try:
+        predictions = np.load(path)
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("Failed to load predictions file %s (%s)", path, exc)
+        return None
+
+    if predictions.ndim != 2 or predictions.shape[1] != 2:
+        LOGGER.warning("Predictions file must have shape [N,2], got %s in %s", predictions.shape, path)
+        return None
+    if predictions.shape[0] == 0:
+        LOGGER.warning("Predictions file is empty in %s", path)
+        return None
+    return predictions.astype(int, copy=False)
+
+
 def _load_experiment(
     exp_dir: Path,
     exp_name: str,
@@ -157,16 +189,19 @@ def _load_experiment(
     metrics_path = exp_dir / "metrics_eval.json"
     per_class_path = exp_dir / "per_class_metrics.csv"
     confusion_raw_path = exp_dir / "confusion_matrix_raw.npy"
+    predictions_path = exp_dir / "predictions.npy"
 
     metrics = _read_json(metrics_path)
     per_class = _read_per_class_csv(per_class_path, class_ids, class_name_lookup)
     confusion_raw = _read_confusion_raw(confusion_raw_path)
+    predictions = _read_predictions(predictions_path)
     return ExperimentData(
         path=exp_dir,
         name=exp_name,
         metrics=metrics,
         per_class=per_class,
         confusion_raw=confusion_raw,
+        predictions=predictions,
     )
 
 
@@ -510,6 +545,371 @@ def _plot_comparison_macro_category_f1(
     _save_figure(fig, out_path, generated_files)
 
 
+def _compute_hierarchical_result(
+    exp: ExperimentData,
+    mapping: ITWPolimiClassMapping,
+    class_ids: list[int],
+) -> HierarchicalResult | None:
+    if exp.predictions is None:
+        return None
+
+    true_labels = exp.predictions[:, 0].astype(int)
+    pred_labels = exp.predictions[:, 1].astype(int)
+    if true_labels.size == 0 or pred_labels.size == 0:
+        LOGGER.warning("Empty predictions content for %s", exp.name)
+        return None
+
+    base_actions = mapping.get_all_base_actions()
+    true_bases = mapping.map_predictions_to_base(true_labels)
+    pred_bases = mapping.map_predictions_to_base(pred_labels)
+    base_confusion = confusion_matrix(
+        true_bases,
+        pred_bases,
+        labels=base_actions,
+        normalize="true",
+    )
+    base_accuracy = float(accuracy_score(true_bases, pred_bases))
+    base_macro_f1 = float(f1_score(true_bases, pred_bases, labels=base_actions, average="macro", zero_division=0))
+    base_report = classification_report(
+        true_bases,
+        pred_bases,
+        labels=base_actions,
+        output_dict=True,
+        zero_division=0,
+    )
+    base_metrics = pd.DataFrame(
+        [
+            {
+                "base_action": base_action,
+                "precision": float(base_report.get(base_action, {}).get("precision", 0.0)),
+                "recall": float(base_report.get(base_action, {}).get("recall", 0.0)),
+                "f1": float(base_report.get(base_action, {}).get("f1-score", 0.0)),
+                "support": int(base_report.get(base_action, {}).get("support", 0)),
+            }
+            for base_action in base_actions
+        ]
+    )
+
+    true_pairs = [mapping.get_base_and_modifier(int(idx)) for idx in true_labels]
+    pred_pairs = [mapping.get_base_and_modifier(int(idx)) for idx in pred_labels]
+    true_base_arr = np.array([base for base, _ in true_pairs], dtype=object)
+    pred_base_arr = np.array([base for base, _ in pred_pairs], dtype=object)
+    true_modifier_arr = np.array([modifier for _, modifier in true_pairs], dtype=object)
+    pred_modifier_arr = np.array([modifier for _, modifier in pred_pairs], dtype=object)
+    correct_base_mask = true_base_arr == pred_base_arr
+
+    if bool(np.any(correct_base_mask)):
+        true_modifiers = ["none" if value is None else str(value) for value in true_modifier_arr[correct_base_mask].tolist()]
+        pred_modifiers = ["none" if value is None else str(value) for value in pred_modifier_arr[correct_base_mask].tolist()]
+        modifier_labels = sorted(set(mapping.get_all_modifiers()) | set(true_modifiers) | set(pred_modifiers) | {"none"})
+        modifier_accuracy = float(accuracy_score(true_modifiers, pred_modifiers))
+        modifier_macro_f1 = float(
+            f1_score(
+                true_modifiers,
+                pred_modifiers,
+                labels=modifier_labels,
+                average="macro",
+                zero_division=0,
+            )
+        )
+        modifier_report = classification_report(
+            true_modifiers,
+            pred_modifiers,
+            labels=modifier_labels,
+            output_dict=True,
+            zero_division=0,
+        )
+        modifier_metrics = pd.DataFrame(
+            [
+                {
+                    "modifier": modifier,
+                    "precision": float(modifier_report.get(modifier, {}).get("precision", 0.0)),
+                    "recall": float(modifier_report.get(modifier, {}).get("recall", 0.0)),
+                    "f1": float(modifier_report.get(modifier, {}).get("f1-score", 0.0)),
+                    "support": int(modifier_report.get(modifier, {}).get("support", 0)),
+                }
+                for modifier in modifier_labels
+            ]
+        )
+    else:
+        modifier_accuracy = float("nan")
+        modifier_macro_f1 = float("nan")
+        modifier_metrics = pd.DataFrame(
+            columns=["modifier", "precision", "recall", "f1", "support"]
+        )
+
+    bases_with_modifiers = ["sitting", "standing", "walking"]
+    base_to_modifiers: dict[str, list[str]] = {base: [] for base in bases_with_modifiers}
+    mapping_dict = mapping.get_mapping()
+    for idx in class_ids:
+        if idx not in mapping_dict:
+            continue
+        base, modifier = mapping.get_base_and_modifier(idx)
+        if base in base_to_modifiers and modifier is not None and modifier not in base_to_modifiers[base]:
+            base_to_modifiers[base].append(modifier)
+    for base in bases_with_modifiers:
+        base_to_modifiers[base] = sorted(base_to_modifiers[base])
+
+    modifier_breakdown_rows: list[dict[str, Any]] = []
+    for base in bases_with_modifiers:
+        for modifier in base_to_modifiers.get(base, []):
+            mask = correct_base_mask & (true_base_arr == base) & (true_modifier_arr == modifier)
+            support = int(np.sum(mask))
+            if support > 0:
+                accuracy = float(np.mean(pred_modifier_arr[mask] == modifier))
+            else:
+                accuracy = 0.0
+            modifier_breakdown_rows.append(
+                {
+                    "base_action": base,
+                    "modifier": modifier,
+                    "accuracy": accuracy,
+                    "support": support,
+                }
+            )
+    modifier_breakdown = pd.DataFrame(
+        modifier_breakdown_rows,
+        columns=["base_action", "modifier", "accuracy", "support"],
+    )
+
+    full_accuracy = float(accuracy_score(true_labels, pred_labels))
+    full_macro_f1 = float(
+        f1_score(
+            true_labels,
+            pred_labels,
+            labels=class_ids,
+            average="macro",
+            zero_division=0,
+        )
+    )
+
+    summary = pd.DataFrame(
+        [
+            {"level": "base_action", "accuracy": base_accuracy, "macro_f1": base_macro_f1},
+            {
+                "level": "modifier_given_correct_base",
+                "accuracy": modifier_accuracy,
+                "macro_f1": modifier_macro_f1,
+            },
+            {"level": "full_37_class", "accuracy": full_accuracy, "macro_f1": full_macro_f1},
+        ]
+    )
+
+    return HierarchicalResult(
+        experiment_name=exp.name,
+        base_actions=base_actions,
+        base_confusion_normalized=base_confusion,
+        base_metrics=base_metrics,
+        modifier_metrics=modifier_metrics,
+        modifier_breakdown=modifier_breakdown,
+        summary=summary,
+    )
+
+
+def _plot_hierarchical_base_confusion(
+    exp: ExperimentData,
+    result: HierarchicalResult,
+    output_dir: Path,
+    generated_files: list[Path],
+) -> None:
+    fig, ax = plt.subplots(figsize=(10, 8))
+    sns.heatmap(
+        result.base_confusion_normalized,
+        annot=True,
+        fmt=".2f",
+        cmap="Blues",
+        cbar=True,
+        xticklabels=result.base_actions,
+        yticklabels=result.base_actions,
+        ax=ax,
+        annot_kws={"size": 9},
+    )
+    ax.set_xlabel("Predicted Base Action")
+    ax.set_ylabel("True Base Action")
+    ax.set_title(f"{exp.name} - Hierarchical Base Action Confusion")
+    ax.tick_params(axis="x", rotation=35, labelsize=9)
+    ax.tick_params(axis="y", rotation=0, labelsize=9)
+
+    out_path = output_dir / f"{_slugify(exp.name)}_hierarchical_base_confusion.png"
+    _save_figure(fig, out_path, generated_files)
+
+
+def _plot_hierarchical_base_f1(
+    exp: ExperimentData,
+    result: HierarchicalResult,
+    output_dir: Path,
+    generated_files: list[Path],
+) -> None:
+    data = result.base_metrics.sort_values("f1", ascending=False).reset_index(drop=True)
+    macro_f1_value = float(
+        result.summary.loc[result.summary["level"] == "base_action", "macro_f1"].iloc[0]
+    )
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    y = np.arange(len(data))
+    ax.barh(y, data["f1"].values, color="#4c72b0", edgecolor="black", linewidth=0.3)
+    ax.set_yticks(y)
+    ax.set_yticklabels(data["base_action"].tolist())
+    ax.invert_yaxis()
+    ax.set_xlabel("F1-score")
+    ax.set_ylabel("Base action")
+    ax.set_title(f"{exp.name} - Hierarchical Base Action F1")
+    ax.axvline(
+        macro_f1_value,
+        linestyle="--",
+        color="black",
+        linewidth=1.2,
+        label=f"Macro-F1={macro_f1_value:.3f}",
+    )
+    ax.legend(loc="lower right")
+
+    out_path = output_dir / f"{_slugify(exp.name)}_hierarchical_base_f1.png"
+    _save_figure(fig, out_path, generated_files)
+
+
+def _plot_hierarchical_modifier_accuracy(
+    exp: ExperimentData,
+    result: HierarchicalResult,
+    output_dir: Path,
+    generated_files: list[Path],
+) -> None:
+    if result.modifier_breakdown.empty:
+        LOGGER.warning("Skipping hierarchical modifier accuracy plot for %s: no modifier data", exp.name)
+        return
+
+    bases = ["sitting", "standing", "walking"]
+    plot_df = result.modifier_breakdown[result.modifier_breakdown["base_action"].isin(bases)].copy()
+    if plot_df.empty:
+        LOGGER.warning("Skipping hierarchical modifier accuracy plot for %s: no sitting/standing/walking data", exp.name)
+        return
+
+    modifiers = sorted(plot_df["modifier"].unique().tolist())
+    if not modifiers:
+        LOGGER.warning("Skipping hierarchical modifier accuracy plot for %s: no modifiers found", exp.name)
+        return
+
+    pivot = plot_df.pivot(index="base_action", columns="modifier", values="accuracy").reindex(bases)
+    pivot = pivot.fillna(0.0)
+    x = np.arange(len(bases))
+    width = 0.82 / len(modifiers)
+    colors = sns.color_palette("tab20", n_colors=len(modifiers))
+
+    fig, ax = plt.subplots(figsize=(14, 8))
+    for i, modifier in enumerate(modifiers):
+        values = pivot[modifier].values if modifier in pivot.columns else np.zeros(len(bases))
+        ax.bar(
+            x - 0.41 + width / 2 + i * width,
+            values,
+            width=width,
+            label=modifier,
+            color=colors[i],
+            edgecolor="black",
+            linewidth=0.2,
+        )
+
+    ax.set_xticks(x)
+    ax.set_xticklabels([base.title() for base in bases])
+    ax.set_ylim(0.0, 1.0)
+    ax.set_ylabel("Modifier Accuracy (Given Correct Base)")
+    ax.set_title(f"{exp.name} - Hierarchical Modifier Accuracy Breakdown")
+    ax.legend(title="Modifier", bbox_to_anchor=(1.01, 1.0), loc="upper left")
+
+    out_path = output_dir / f"{_slugify(exp.name)}_hierarchical_modifier_accuracy.png"
+    _save_figure(fig, out_path, generated_files)
+
+
+def _save_hierarchical_summary(
+    exp: ExperimentData,
+    result: HierarchicalResult,
+    output_dir: Path,
+    generated_files: list[Path],
+) -> None:
+    out_path = output_dir / f"{_slugify(exp.name)}_hierarchical_summary.csv"
+    result.summary.to_csv(out_path, index=False)
+    generated_files.append(out_path)
+
+    print(f"\nHierarchical summary: {exp.name}")
+    print(result.summary.to_string(index=False))
+
+
+def _plot_comparison_hierarchical_base_f1(
+    hierarchical_results: list[HierarchicalResult],
+    output_dir: Path,
+    generated_files: list[Path],
+) -> None:
+    if len(hierarchical_results) < 2:
+        LOGGER.warning("Skipping comparison_hierarchical_base_f1: need at least 2 experiments with predictions.npy")
+        return
+
+    base_actions = sorted({base for result in hierarchical_results for base in result.base_actions})
+    x = np.arange(len(base_actions))
+    width = 0.82 / len(hierarchical_results)
+
+    fig, ax = plt.subplots(figsize=(12, 8))
+    for i, result in enumerate(hierarchical_results):
+        base_series = result.base_metrics.set_index("base_action")["f1"]
+        values = [float(base_series.get(base, 0.0)) for base in base_actions]
+        ax.bar(
+            x - 0.41 + width / 2 + i * width,
+            values,
+            width=width,
+            label=result.experiment_name,
+            color=EXPERIMENT_COLORS[i % len(EXPERIMENT_COLORS)],
+        )
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(base_actions, rotation=30, ha="right")
+    ax.set_ylim(0.0, 1.0)
+    ax.set_ylabel("F1-score")
+    ax.set_title("Comparative Hierarchical Base Action F1")
+    ax.legend(loc="upper right")
+
+    out_path = output_dir / "comparison_hierarchical_base_f1.png"
+    _save_figure(fig, out_path, generated_files)
+
+
+def _plot_comparison_hierarchical_summary(
+    hierarchical_results: list[HierarchicalResult],
+    output_dir: Path,
+    generated_files: list[Path],
+) -> None:
+    if len(hierarchical_results) < 2:
+        LOGGER.warning("Skipping comparison_hierarchical_summary: need at least 2 experiments with predictions.npy")
+        return
+
+    levels = ["base_action", "modifier_given_correct_base", "full_37_class"]
+    level_labels = {
+        "base_action": "base",
+        "modifier_given_correct_base": "modifier",
+        "full_37_class": "full",
+    }
+    x = np.arange(len(levels))
+    width = 0.82 / len(hierarchical_results)
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    for i, result in enumerate(hierarchical_results):
+        summary_series = result.summary.set_index("level")["macro_f1"]
+        values = [float(summary_series.get(level, np.nan)) for level in levels]
+        values = np.nan_to_num(values, nan=0.0)
+        ax.bar(
+            x - 0.41 + width / 2 + i * width,
+            values,
+            width=width,
+            label=result.experiment_name,
+            color=EXPERIMENT_COLORS[i % len(EXPERIMENT_COLORS)],
+        )
+
+    ax.set_xticks(x)
+    ax.set_xticklabels([level_labels[level] for level in levels])
+    ax.set_ylim(0.0, 1.0)
+    ax.set_ylabel("Macro-F1")
+    ax.set_title("Comparative Hierarchical Summary")
+    ax.legend(loc="upper right")
+
+    out_path = output_dir / "comparison_hierarchical_summary.png"
+    _save_figure(fig, out_path, generated_files)
+
+
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Analyze saved evaluation outputs and generate static plots.",
@@ -575,6 +975,7 @@ def main() -> None:
                     metrics=None,
                     per_class=None,
                     confusion_raw=None,
+                    predictions=None,
                 )
             )
             continue
@@ -594,6 +995,22 @@ def main() -> None:
         _plot_global_comparison_table(comparison_df, output_dir, generated_files)
         _plot_comparison_per_class_f1(experiments, output_dir, class_ids, class_name_lookup, generated_files)
         _plot_comparison_macro_category_f1(experiments, output_dir, macro_groups, generated_files)
+
+    # Hierarchical analysis (only when predictions.npy is available).
+    hierarchical_results: list[HierarchicalResult] = []
+    for exp in experiments:
+        hierarchical_result = _compute_hierarchical_result(exp, mapping, class_ids)
+        if hierarchical_result is None:
+            continue
+        _plot_hierarchical_base_confusion(exp, hierarchical_result, output_dir, generated_files)
+        _plot_hierarchical_base_f1(exp, hierarchical_result, output_dir, generated_files)
+        _plot_hierarchical_modifier_accuracy(exp, hierarchical_result, output_dir, generated_files)
+        _save_hierarchical_summary(exp, hierarchical_result, output_dir, generated_files)
+        hierarchical_results.append(hierarchical_result)
+
+    if len(experiments) > 1:
+        _plot_comparison_hierarchical_base_f1(hierarchical_results, output_dir, generated_files)
+        _plot_comparison_hierarchical_summary(hierarchical_results, output_dir, generated_files)
 
     print("Generated files:")
     if not generated_files:
