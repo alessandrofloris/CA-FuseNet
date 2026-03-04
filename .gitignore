@@ -81,6 +81,8 @@ mlruns/
 
 # Evaluation results
 results/
+analysis_output/
+artifacts/
 
 # ----------------------------------------------------------------------
 # 5. Jupyter Notebooks / IDE Specific Files
