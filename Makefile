@@ -20,6 +20,9 @@ train_cafusenet:
 eval_pose:
 	$(PYTHON) -m ca_fusenet.scripts.eval experiment=pose_baseline
 
+eval_video:
+	$(PYTHON) -m ca_fusenet.scripts.eval experiment=video_baseline
+
 extract_tublets:
 	$(PYTHON) -m ca_fusenet.scripts.extract_tublets
 
