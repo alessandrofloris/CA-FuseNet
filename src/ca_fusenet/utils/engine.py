@@ -36,14 +36,17 @@ def ensure_output_dirs(cfg) -> dict[str, Path]:
 
     ckpt_dir = Path(cfg.paths.ckpt_dir)
     eval_dir = Path(cfg.paths.eval_dir)
+    reports_dir = Path(cfg.paths.reports_dir)
 
     ckpt_dir.mkdir(parents=True, exist_ok=True)
     eval_dir.mkdir(parents=True, exist_ok=True)
+    reports_dir.mkdir(parents=True, exist_ok=True)
 
     return {
         "out": out,
         "ckpt": ckpt_dir,
         "eval": eval_dir,
+        "reports": reports_dir
     }
 
 def dump_json(path: Path, obj) -> None:
