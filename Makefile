@@ -23,6 +23,9 @@ eval_pose:
 eval_video:
 	$(PYTHON) -m ca_fusenet.scripts.eval experiment=video_baseline
 
+analyze_results:
+	$(PYTHON) -m ca_fusenet.scripts.analyze_results --experiment_dirs outputs/2026-03-04/10-55-25_video_baseline/artifacts/reports/ --output_dir analysis_output --top_k 12
+
 extract_tublets:
 	$(PYTHON) -m ca_fusenet.scripts.extract_tublets
 
