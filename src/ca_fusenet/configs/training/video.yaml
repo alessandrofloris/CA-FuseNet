@@ -9,3 +9,7 @@ deterministic: false
 
 # Early stopping
 patience: 7
+
+# Data augmentation
+use_augmentation: true
+crop_size: 112

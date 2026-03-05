@@ -11,7 +11,8 @@ from omegaconf import DictConfig, OmegaConf
 from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix
 import torch
 from torch import nn
-from torch.utils.data import Subset
+
+from ca_fusenet.data.transforms import TransformSubset, VideoTransform
 
 from ca_fusenet.utils.engine import (
     build_dataloader,
@@ -116,6 +117,8 @@ def main(cfg: DictConfig) -> None:
     weight_decay = float(select_cfg(training_cfg, "weight_decay", 1e-2))
     epochs = int(select_cfg(training_cfg, "epochs", 5))
     patience = int(select_cfg(training_cfg, "patience", 10))
+    use_augmentation = bool(select_cfg(training_cfg, "use_augmentation", False))
+    crop_size = int(select_cfg(training_cfg, "crop_size", 96))
 
     # Output directories (checkpoints, metrics, eval)
     out_dirs = ensure_output_dirs(cfg)
@@ -136,6 +139,11 @@ def main(cfg: DictConfig) -> None:
     logger.info("config.training=%s", OmegaConf.to_container(training_cfg, resolve=True))
     logger.info("config.model=%s", OmegaConf.to_container(model_cfg, resolve=True))
     logger.info("config.data=%s", OmegaConf.to_container(data_cfg, resolve=True))
+    logger.info(
+        "augmentation=%s crop_size=%s",
+        use_augmentation,
+        crop_size if use_augmentation else "N/A",
+    )
 
     # Dataset instantiation
     if train_data_cfg is not None:
@@ -154,8 +162,19 @@ def main(cfg: DictConfig) -> None:
     if n_samples < 2:
         raise ValueError("Dataset too small for train/val split (need N>=2).")
 
+    if use_augmentation:
+        train_transform = VideoTransform(train=True, crop_size=crop_size)
+        val_transform = VideoTransform(train=False, crop_size=crop_size)
+    else:
+        train_transform = None
+        val_transform = None
+
     if val_split == 0.0:
-        train_ds = train_dataset
+        train_ds = TransformSubset(
+            train_dataset,
+            list(range(len(train_dataset))),
+            transform=train_transform,
+        )
         val_ds = None
     else:
         generator = torch.Generator().manual_seed(seed)
@@ -166,8 +185,8 @@ def main(cfg: DictConfig) -> None:
         indices = torch.randperm(n_samples, generator=generator).tolist()
         train_indices = indices[:train_size]
         val_indices = indices[train_size:]
-        train_ds = Subset(train_dataset, train_indices)
-        val_ds = Subset(train_dataset, val_indices)
+        train_ds = TransformSubset(train_dataset, train_indices, transform=train_transform)
+        val_ds = TransformSubset(train_dataset, val_indices, transform=val_transform)
     
     # Train data loaders
     pin_memory = torch.cuda.is_available()

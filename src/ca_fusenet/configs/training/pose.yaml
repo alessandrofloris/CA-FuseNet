@@ -9,3 +9,5 @@ deterministic: false
 
 # Early stopping
 patience: 7
+
+use_augmentation: false
