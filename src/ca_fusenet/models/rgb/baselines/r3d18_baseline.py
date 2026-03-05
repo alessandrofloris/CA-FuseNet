@@ -17,7 +17,7 @@ class RGBOnlyBaseline(nn.Module):
         *,
         num_classes: int,
         pretrained: bool = True,
-        freeze_backbone: bool = False,
+        freeze_depth: int = 0,
         freeze_proj: bool = False,
         feature_dim: int | None = None,   
         dropout_proj: float = 0.1,
@@ -29,7 +29,7 @@ class RGBOnlyBaseline(nn.Module):
 
         self.encoder = R3D18Encoder(
             pretrained=pretrained,
-            freeze_backbone=freeze_backbone,
+            freeze_depth=freeze_depth,
             freeze_proj=freeze_proj,
             d_output=feature_dim,
             dropout_proj=dropout_proj if feature_dim is not None else 0.0,

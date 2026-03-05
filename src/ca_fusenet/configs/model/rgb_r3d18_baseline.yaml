@@ -2,9 +2,8 @@ _target_: ca_fusenet.models.rgb.baselines.r3d18_baseline.RGBOnlyBaseline
 num_classes: 37
 feature_dim: 512
 pretrained: true  
-freeze_backbone: false
+# 0: none, 1: stem, 2: stem+layer1, 3: +layer2, 4: +layer3, 5: +layer4
+freeze_depth: 5
 freeze_proj: false
-dropout_proj: 0.1
-dropout_head: 0.2
-
-
+dropout_proj: 0.3
+dropout_head: 0.3
