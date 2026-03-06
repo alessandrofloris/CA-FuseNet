@@ -84,6 +84,9 @@ results/
 analysis_output/
 artifacts/
 
+# Personal notes
+Note.MD
+
 # ----------------------------------------------------------------------
 # 5. Jupyter Notebooks / IDE Specific Files
 # ----------------------------------------------------------------------

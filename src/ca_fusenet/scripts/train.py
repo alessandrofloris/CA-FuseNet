@@ -114,6 +114,8 @@ def main(cfg: DictConfig) -> None:
     num_workers = int(select_cfg(training_cfg, "num_workers", 0))
     val_split = float(select_cfg(training_cfg, "val_split", 0.1))
     lr = float(select_cfg(training_cfg, "lr", 1e-3))
+    lr_encoder = float(select_cfg(training_cfg, "lr_encoder", lr))
+    freeze_encoder_epochs = int(select_cfg(training_cfg, "freeze_encoder_epochs", 0))
     weight_decay = float(select_cfg(training_cfg, "weight_decay", 1e-2))
     epochs = int(select_cfg(training_cfg, "epochs", 5))
     patience = int(select_cfg(training_cfg, "patience", 10))
@@ -162,6 +164,7 @@ def main(cfg: DictConfig) -> None:
     if n_samples < 2:
         raise ValueError("Dataset too small for train/val split (need N>=2).")
 
+    # Data augmentation transforms
     if use_augmentation:
         train_transform = VideoTransform(train=True, crop_size=crop_size)
         val_transform = VideoTransform(train=False, crop_size=crop_size)
@@ -188,6 +191,7 @@ def main(cfg: DictConfig) -> None:
         train_ds = TransformSubset(train_dataset, train_indices, transform=train_transform)
         val_ds = TransformSubset(train_dataset, val_indices, transform=val_transform)
     
+
     # Train data loaders
     pin_memory = torch.cuda.is_available()
     train_loader = build_dataloader(
@@ -217,7 +221,42 @@ def main(cfg: DictConfig) -> None:
     logger.info("device=%s", device)
 
     # Optimizer and loss function setup
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+    has_encoder_group = False
+    encoder_trainable_count = 0
+    encoder_frozen_count = 0
+    if hasattr(model, "encoder"):
+        encoder_param_ids = {id(p) for p in model.encoder.parameters()}
+        encoder_params = [p for p in model.encoder.parameters() if p.requires_grad]
+        head_params = [
+            p for p in model.parameters() if id(p) not in encoder_param_ids and p.requires_grad
+        ]
+        encoder_trainable_count = sum(p.numel() for p in model.encoder.parameters() if p.requires_grad)
+        encoder_frozen_count = sum(p.numel() for p in model.encoder.parameters() if not p.requires_grad)
+        logger.info(
+            "freeze_encoder_epochs=%d lr_encoder=%s encoder_trainable_params=%d encoder_frozen_params=%d",
+            freeze_encoder_epochs,
+            lr_encoder,
+            encoder_trainable_count,
+            encoder_frozen_count,
+        )
+        if len(encoder_params) == 0:
+            logger.info(
+                "All encoder parameters frozen by model config, using single param group for head only"
+            )
+            optimizer = torch.optim.AdamW(head_params, lr=lr, weight_decay=weight_decay)
+        else:
+            param_groups = [
+                {
+                    "params": encoder_params,
+                    "lr": 0.0 if freeze_encoder_epochs > 0 else lr_encoder,
+                },
+                {"params": head_params, "lr": lr},
+            ]
+            optimizer = torch.optim.AdamW(param_groups, weight_decay=weight_decay)
+            has_encoder_group = True
+    else:
+        logger.warning("Model has no .encoder attribute, using single param group")
+        optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
     criterion = nn.CrossEntropyLoss()
 
     # Training loop
@@ -226,7 +265,23 @@ def main(cfg: DictConfig) -> None:
     epochs_without_improvement = 0
     metrics_history: list[dict] = []
     for epoch in range(1, epochs + 1):
-        
+        if (
+            has_encoder_group
+            and freeze_encoder_epochs > 0
+            and epoch == freeze_encoder_epochs + 1
+        ):
+            optimizer.param_groups[0]["lr"] = lr_encoder
+            logger.info(
+                "Unfreezing encoder trainable params at epoch %d with lr_encoder=%s",
+                epoch,
+                lr_encoder,
+            )
+            logger.info(
+                "Encoder trainable params: %d, permanently frozen by model config: %d",
+                encoder_trainable_count,
+                encoder_frozen_count,
+            )
+
         train_metrics = run_epoch(
             model, train_loader, device, criterion, optimizer, train=True, input_key=input_key
         )
@@ -235,12 +290,16 @@ def main(cfg: DictConfig) -> None:
             model, val_loader, device, criterion, None, train=False, input_key=input_key
         )
 
+        lr_head = optimizer.param_groups[-1]["lr"]
+        lr_enc = optimizer.param_groups[0]["lr"] if len(optimizer.param_groups) > 1 else lr_head
         logger.info(
-            "epoch=%d/%d %s %s",
+            "epoch=%d/%d %s %s lr_head=%.2e lr_encoder=%.2e",
             epoch,
             epochs,
             train_metrics.prefixed("train_"),
             val_metrics.prefixed("val_"),
+            lr_head,
+            lr_enc,
         )
 
         metrics_history.append(

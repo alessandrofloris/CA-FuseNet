@@ -34,7 +34,7 @@ class VideoTransform:
         erase_ratio: tuple = (0.3, 3.3),
         temporal_subsample_rate: float = 1.0,
         max_temporal_shift: int = 2,
-        input_scale_255: bool = True,
+        input_scale_255: bool = False,
         mean: tuple = (0.485, 0.456, 0.406),
         std: tuple = (0.229, 0.224, 0.225),
     ):
@@ -262,11 +262,14 @@ if __name__ == "__main__":
 
     train_tf = VideoTransform(train=True)
     train_out = train_tf(x.clone())
-    assert train_out.shape == (3, 16, 96, 96), f"Unexpected shape: {train_out.shape}"
+    assert train_out.shape == (3, 16, 112, 112), f"Unexpected shape: {train_out.shape}"
+    print(f"Min original: {x.min()}, Max: {x.max()}, Mean: {x.mean():.3f}")
+    print(f"Min transformed: {train_out.min()}, Max: {train_out.max()}, Mean: {train_out.mean():.3f}")
+
 
     eval_tf = VideoTransform(train=False)
     eval_out = eval_tf(x.clone())
-    assert eval_out.shape == (3, 16, 96, 96), f"Unexpected shape: {eval_out.shape}"
+    assert eval_out.shape == (3, 16, 112, 112), f"Unexpected shape: {eval_out.shape}"
 
     no_crop_tf = VideoTransform(train=True, crop_size=112)
     no_crop_out = no_crop_tf(x.clone())

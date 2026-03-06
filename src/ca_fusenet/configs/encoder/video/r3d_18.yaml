@@ -1,8 +1,7 @@
 _target_: ca_fusenet.models.rgb.encoders.r3d18_encoder.R3D18Encoder
 pretrained: true
 weights: KINETICS400_V1
-# 0: none, 1: stem, 2: stem+layer1, 3: +layer2, 4: +layer3, 5: +layer4
-freeze_depth: 3
+freeze_depth: 1 # 0: none, 1: stem, 2: stem+layer1, 3: +layer2, 4: +layer3, 5: +layer4
 freeze_proj: false
 d_output: 512
 dropout_proj: 0.0
