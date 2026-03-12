@@ -18,6 +18,52 @@ from torch.utils.data import Subset
 from torchvision.transforms import ColorJitter
 
 
+class PoseTransform:
+    '''Placeholder'''
+    def __init__(
+        self,
+        train: bool = True,
+        crop_size: int = 112,
+        crop_padding: int = 8,
+        flip_p: float = 0.5,
+        brightness: float = 0.3,
+        contrast: float = 0.3,
+        saturation: float = 0.2,
+        hue: float = 0.1,
+        erase_p: float = 0.3,
+        erase_scale: tuple = (0.02, 0.15),
+        erase_ratio: tuple = (0.3, 3.3),
+        temporal_subsample_rate: float = 1.0,
+        max_temporal_shift: int = 2,
+        input_scale_255: bool = False,
+        mean: tuple = (0.485, 0.456, 0.406),
+        std: tuple = (0.229, 0.224, 0.225),
+    ):
+        self.train = bool(train)
+        self.crop_size = int(crop_size)
+        self.crop_padding = int(crop_padding)
+        self.flip_p = float(flip_p)
+        self.brightness = float(brightness)
+        self.contrast = float(contrast)
+        self.saturation = float(saturation)
+        self.hue = float(hue)
+        self.erase_p = float(erase_p)
+        self.erase_scale = tuple(erase_scale)
+        self.erase_ratio = tuple(erase_ratio)
+        self.temporal_subsample_rate = float(temporal_subsample_rate)
+        self.max_temporal_shift = int(max_temporal_shift)
+        self.input_scale_255 = bool(input_scale_255)
+
+        self.mean = torch.tensor(mean, dtype=torch.float32).view(3, 1, 1, 1)
+        self.std = torch.tensor(std, dtype=torch.float32).view(3, 1, 1, 1)
+
+        self._color_jitter = ColorJitter(
+            brightness=self.brightness,
+            contrast=self.contrast,
+            saturation=self.saturation,
+            hue=self.hue,
+        )
+
 class VideoTransform:
     def __init__(
         self,
