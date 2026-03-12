@@ -1,13 +1,24 @@
 input_key: "pose"
-epochs: 30
-lr: 1e-3
+
+# Optimizer
 weight_decay: 1e-2
-batch_size: 32
-num_workers: 0
-val_split: 0.1
-deterministic: false
+
+# Learning rate
+lr: 1e-3
+lr_backbone: 1e-5
 
 # Early stopping
 patience: 7
 
+# Freezing strategy
+freeze_encoder_epochs: 0
+
+# Data augmentation
 use_augmentation: false
+crop_size: 112
+
+epochs: 15
+batch_size: 32
+num_workers: 2
+val_split: 0.1
+deterministic: false

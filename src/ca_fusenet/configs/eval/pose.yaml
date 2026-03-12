@@ -1,0 +1,3 @@
+checkpoint_path: artifacts/best_pose_baseline.pt
+batch_size: 32
+num_workers: 4
