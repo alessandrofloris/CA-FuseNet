@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import logging
+from ca_fusenet.utils.class_mapping import ITWPolimiClassMapping
 import hydra
 import matplotlib.pyplot as plt
 import numpy as np
@@ -178,10 +179,13 @@ def _save_confusion_matrix(
 
     cm = (cm *100).round(0).astype(int)
 
+    mapping_classes = ITWPolimiClassMapping()
+    class_names = [mapping_classes.get_class_name(i) for i in range(num_classes)]
+
     fig, ax = plt.subplots(figsize=(15, 13))
     display = ConfusionMatrixDisplay(
         confusion_matrix=cm,
-        display_labels=list(range(num_classes)),
+        display_labels=class_names,
     )
     display.plot(
         ax=ax,

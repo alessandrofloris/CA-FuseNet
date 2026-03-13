@@ -85,3 +85,7 @@ class ITWPOLIMI(Dataset):
             "pose": np.asarray(pose_sample),
             "tublet": np.asarray(tublet_sample),
         }
+
+    def get_labels(self):
+        """Returns all the labels in the dataset."""
+        return self.label_loader.get_all_labels(self.labels_store)

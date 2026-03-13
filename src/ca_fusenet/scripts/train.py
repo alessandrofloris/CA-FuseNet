@@ -6,6 +6,7 @@ from torch import nn
 from omegaconf import DictConfig, OmegaConf
 from ca_fusenet.training.optimizer import buildOptimizer
 from ca_fusenet.training.data import buildDataloaders
+from ca_fusenet.training.criterion import buildCriterion
 from ca_fusenet.training.trainer import trainer
 from ca_fusenet.utils.metrics import finalize_training
 from ca_fusenet.utils.engine import ensure_output_dirs
@@ -39,7 +40,7 @@ def main(cfg: DictConfig) -> None:
     logger.info("config.data=%s", OmegaConf.to_container(data_cfg, resolve=True))
 
     # Data loaders
-    train_loader, val_loader = buildDataloaders(seed, data_cfg, training_cfg)
+    train_loader, val_loader, all_labels = buildDataloaders(seed, data_cfg, training_cfg)
     
     # Model
     model = hydra.utils.instantiate(model_cfg)
@@ -52,7 +53,7 @@ def main(cfg: DictConfig) -> None:
     optimizer, has_encoder_group = buildOptimizer(model, training_cfg)
     
     # Loss function
-    criterion = nn.CrossEntropyLoss()
+    criterion = buildCriterion(all_labels, device)
 
     # Training loop
     best_epoch, best_val_acc, metrics_history = trainer(

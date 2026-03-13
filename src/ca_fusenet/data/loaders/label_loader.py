@@ -44,3 +44,7 @@ class LabelLoader(BaseLoader):
         return LabelRecord(
             sample_id=sample_id, label=label, video_path=video_path, frame=frame
         )
+    
+    def get_all_labels(self, store: LabelStoreContract):
+        """Returns all the labels in the store."""
+        return store.labels

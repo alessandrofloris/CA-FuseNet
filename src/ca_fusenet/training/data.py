@@ -12,6 +12,9 @@ def buildDataloaders(seed, data_config, training_config):
     if len(train_dataset) <= 0:
         raise ValueError("Training dataset is empty; check data configuration and artifacts.")
 
+    # Get all labels for future class weight calculation
+    all_labels = train_dataset.train.get_labels()
+    
     # Transformations setup
     video_augmentation = training_config.get("video_augmentation", False)
     pose_augmentation = training_config.get("pose_augmentation", False)
@@ -73,4 +76,4 @@ def buildDataloaders(seed, data_config, training_config):
             pin_memory=pin_memory,
         )
     
-    return train_loader, val_loader
+    return train_loader, val_loader, all_labels
