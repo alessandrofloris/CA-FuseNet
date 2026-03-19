@@ -3,6 +3,6 @@
 experiment_name: pose_baseline
 defaults:
   - /data: ca_fusenet_dataset
-  - /model: pose_stgcn_baseline
+  - /model: stgcnpp_baseline.yaml
   - /training: pose
   - /eval: default

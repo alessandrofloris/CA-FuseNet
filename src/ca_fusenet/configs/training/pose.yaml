@@ -11,7 +11,7 @@ lr_encoder: 1e-5
 patience: 10
 
 # Freezing strategy
-freeze_encoder_epochs: 0
+freeze_encoder_epochs: 3
 
 # Data augmentation
 use_augmentation: false

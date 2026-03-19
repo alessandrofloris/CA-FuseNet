@@ -1,0 +1,9 @@
+_target_: ca_fusenet.models.pose.baselines.stgcnpp_baseline.PoseSTGCNPPBaseline
+num_classes: 37
+d_output: 256
+dropout_head: 0.3
+pretrained: "artifacts/ntu.pth"
+num_person: 1
+gcn_adaptive: "init"
+gcn_with_res: true
+tcn_type: "mstcn"

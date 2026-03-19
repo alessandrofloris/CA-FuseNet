@@ -17,14 +17,14 @@ def _store_metrics_history(metrics_history, epoch, train_metrics, val_metrics):
             {
                 "epoch": epoch,
                 "train": {
-                    "loss": _to_json_float(train_metrics["loss"]),
-                    "acc": _to_json_float(train_metrics["accuracy"]),
-                    "macro_f1": _to_json_float(train_metrics["macro_f1"]),
+                    "loss": _to_json_float(train_metrics.loss),
+                    "acc": _to_json_float(train_metrics.acc),
+                    "macro_f1": _to_json_float(train_metrics.macro_f1),
                 },
                 "val": {
-                    "loss": _to_json_float(val_metrics["loss"]),
-                    "acc": _to_json_float(val_metrics["accuracy"]),
-                    "macro_f1": _to_json_float(val_metrics["macro_f1"]),
+                    "loss": _to_json_float(val_metrics.loss),
+                    "acc": _to_json_float(val_metrics.acc),
+                    "macro_f1": _to_json_float(val_metrics.macro_f1),
                 },
             }
         )

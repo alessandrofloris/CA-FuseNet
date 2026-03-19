@@ -1,0 +1,13 @@
+_target_: ca_fusenet.models.pose.encoders.stgcnpp_encoder.STGCNPPEncoder
+in_channels: 3
+d_output: 256
+num_person: 1
+base_channels: 64
+num_stages: 10
+inflate_stages: [5, 8]
+down_stages: [5, 8]
+ch_ratio: 2
+gcn_adaptive: "init"
+gcn_with_res: true
+tcn_type: "mstcn"
+pretrained: null  # set to checkpoint path when using pretrained weights
