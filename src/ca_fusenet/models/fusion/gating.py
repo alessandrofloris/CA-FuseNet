@@ -45,7 +45,7 @@ class CrowdAwareGating(nn.Module):
         z = torch.cat((v_gate, p_gate, o), dim=1)
         z = self.gate_norm(z)
         alpha = self.gate_mlp(z)
-        #alpha = torch.clamp(alpha, min=self.alpha_min, max=self.alpha_max)
+        alpha = torch.clamp(alpha, min=self.alpha_min, max=self.alpha_max)
 
         fused_weighted = torch.cat((alpha * f_pose, (1.0 - alpha) * f_video), dim=1)
         f_fused = self.fusion_proj(fused_weighted)
