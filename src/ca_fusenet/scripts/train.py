@@ -22,7 +22,7 @@ def main(cfg: DictConfig) -> None:
     seed = cfg.get("seed", 42)
     torch.manual_seed(seed)
 
-    # Loading configuration
+    # Loading configurations
     training_cfg = cfg.get("training", None)
     data_cfg = cfg.get("data", None)
     model_cfg = cfg.get("model", None)

@@ -13,7 +13,7 @@ def buildDataloaders(seed, data_config, training_config):
         raise ValueError("Training dataset is empty; check data configuration and artifacts.")
 
     # Get all labels for future class weight calculation
-    all_labels = train_dataset.train.get_labels()
+    all_labels = train_dataset.get_labels()
     
     # Transformations setup
     video_augmentation = training_config.get("video_augmentation", False)

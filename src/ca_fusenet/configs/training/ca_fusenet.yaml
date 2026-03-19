@@ -4,8 +4,8 @@ input_key: "fusion"
 weight_decay: 1e-4
 
 # Learning rate
-lr_fusion: 1e-3
-lr_encoder: 1e-4 # dovrei averne uno separato per ogni encoder?
+lr: 1e-3
+lr_encoder: 1e-5 # dovrei averne uno separato per ogni encoder?
 
 # Freezing strategy
 freeze_encoder_epochs: 5
@@ -18,7 +18,10 @@ eta_min: 1e-6
 patience: 7
 
 epochs: 30
-batch_size: 16
+batch_size: 32
 num_workers: 0
 val_split: 0.1
 deterministic: false
+
+ckpt_video_path: "artifacts/best_video_baseline.pt"
+ckpt_pose_path: "artifacts/best_pose_baseline.pt"
