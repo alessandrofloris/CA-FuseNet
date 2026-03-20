@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from random import sample
 
 import numpy as np
 
@@ -39,4 +40,8 @@ class JointLoader(BaseLoader):
         arr = store.joint
 
         sample = arr[idx, :, :, :, 0]
+
+        # Frame normalization to [0, 1] range
+        sample[0] = sample[0] / 1920.0
+        sample[1] = sample[1] / 1080.0
         return sample

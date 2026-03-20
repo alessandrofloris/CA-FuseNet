@@ -1,14 +1,14 @@
 input_key: "pose"
 
 # Optimizer
-weight_decay: 1e-4
+weight_decay: 1e-2
 
 # Learning rate
-lr: 1e-3
+lr: 1e-4
 lr_encoder: 1e-5
 
 # Early stopping
-patience: 10
+patience: 7
 
 # Freezing strategy
 freeze_encoder_epochs: 3
