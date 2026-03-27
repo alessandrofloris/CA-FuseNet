@@ -38,6 +38,9 @@ class CaFuseNet(nn.Module):
         )
         self.classification_head = nn.Linear(d_fused, num_classes)
 
+        self.pose_aux_head = nn.Linear(d_pose, num_classes)
+
+
     def forward(
         self,
         video_input: Any,
@@ -46,9 +49,10 @@ class CaFuseNet(nn.Module):
     ) -> dict[str, Tensor]:
         f_video = self.video_encoder(video_input)
         f_pose = self.pose_encoder(pose_input)
+        pose_aux_logits = self.pose_aux_head(f_pose)
         f_fused, alpha = self.gating(f_video, f_pose, occlusion_indicators)
         logits = self.classification_head(f_fused)
-        return {"logits": logits, "alpha": alpha, "f_fused": f_fused}
+        return {"logits": logits, "alpha": alpha, "f_fused": f_fused, "pose_aux_logits": pose_aux_logits}
 
     def get_param_groups(self, lr_encoder: float, lr_fusion: float) -> list[dict]:
         encoder_params = []

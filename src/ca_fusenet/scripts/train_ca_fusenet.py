@@ -179,17 +179,10 @@ def main(cfg: DictConfig) -> None:
               for k, v in ckpt_video["model_state"].items() 
               if k.startswith("encoder.")}
     missing, unexpected = video_encoder.load_state_dict(state_dict, strict=False)
-    logger.info("Loaded %d keys, missing %d, unexpected %d", 
+    logger.info("Video encoder: Loaded %d keys, missing %d, unexpected %d", 
         len(state_dict) - len(unexpected), len(missing), len(unexpected))
     
     pose_encoder = hydra.utils.instantiate(pose_encoder_cfg)
-    ckpt_pose = torch.load(training_cfg.get("ckpt_pose_path", None))
-    state_dict = {k.replace("encoder.", "", 1): v 
-              for k, v in ckpt_pose["model_state"].items() 
-              if k.startswith("encoder.")}
-    missing, unexpected = pose_encoder.load_state_dict(state_dict, strict=False)
-    logger.info("Loaded %d keys, missing %d, unexpected %d", 
-        len(state_dict) - len(unexpected), len(missing), len(unexpected))
     
     # Model instantiation and setup
     model = buildModel(video_encoder, pose_encoder, model_cfg, video_encoder_cfg, pose_encoder_cfg)

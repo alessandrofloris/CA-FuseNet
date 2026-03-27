@@ -4,8 +4,9 @@ input_key: "fusion"
 weight_decay: 1e-4
 
 # Learning rate
-lr: 1e-3
-lr_encoder: 1e-5 # dovrei averne uno separato per ogni encoder?
+lr: 1e-4
+lr_encoder: 5e-6 
+lr_gate: 1e-5
 
 # Freezing strategy
 freeze_encoder_epochs: 5
@@ -15,7 +16,7 @@ T_max: 30
 eta_min: 1e-6
 
 # Early stopping
-patience: 7
+patience: 4
 
 epochs: 30
 batch_size: 32

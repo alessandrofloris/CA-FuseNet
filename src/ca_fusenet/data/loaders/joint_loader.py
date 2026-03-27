@@ -39,7 +39,7 @@ class JointLoader(BaseLoader):
 
         arr = store.joint
 
-        sample = arr[idx, :, :, :, 0]
+        sample = arr[idx, :, :, :, 0].copy()
 
         # Frame normalization to [0, 1] range
         sample[0] = sample[0] / 1920.0

@@ -76,32 +76,24 @@ class STGCNPPEncoder(nn.Module):
         if not isinstance(checkpoint, dict):
             raise TypeError("Checkpoint must be a dict or contain a dict state_dict.")
 
-        for key in ("state_dict", "model_state_dict", "model", "net"):
+        for key in ("state_dict", "model_state_dict", "model", "net", "model_state"):
             state_dict = checkpoint.get(key)
             if isinstance(state_dict, dict):
                 return state_dict
         return checkpoint
 
     def _select_prefix_to_strip(self, state_dict: dict[str, torch.Tensor]) -> str:
-        model_keys = set(self.backbone.state_dict().keys())
-        candidate_prefixes = {""}
-
-        for key in state_dict.keys():
-            parts = key.split(".")
-            for idx in range(1, min(5, len(parts))):
-                candidate_prefixes.add(".".join(parts[:idx]) + ".")
-
+        model_keys = set(self.backbone.state_dict().keys())    
+        candidates = ["", "backbone.", "encoder.", "encoder.backbone."]
         best_prefix = ""
-        best_overlap = -1
-        for prefix in candidate_prefixes:
-            overlap = 0
-            for key in state_dict.keys():
-                stripped = key[len(prefix):] if key.startswith(prefix) else key
-                if stripped in model_keys:
-                    overlap += 1
-            if overlap > best_overlap:
+        best_matches = 0
+        for prefix in candidates:
+            matches = sum(1 for k in state_dict if k.startswith(prefix) 
+                        and k[len(prefix):] in model_keys)
+            if matches > best_matches:
+                best_matches = matches
                 best_prefix = prefix
-                best_overlap = overlap
+        
         return best_prefix
 
     @staticmethod
@@ -121,6 +113,7 @@ class STGCNPPEncoder(nn.Module):
             raise FileNotFoundError(f"Pretrained checkpoint not found: {pretrained_path}")
 
         checkpoint = torch.load(ckpt_path, map_location="cpu")
+        
         raw_state_dict = self._extract_state_dict(checkpoint)
         prefix = self._select_prefix_to_strip(raw_state_dict)
         state_dict = self._strip_prefix(raw_state_dict, prefix)

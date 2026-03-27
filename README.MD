@@ -31,4 +31,5 @@ python -m ca_fusenet.scripts.train model=rgb_baseline
 - Reintrodurre validazione sample opzionale dentro __getitem__
 - Creare struttura di salvataggio migliore per il debug di estrazione di tublets
 - Aggiungere padding alle tublets
-- Ora sto trasformando le tublet da uint8 a float nella funzione getsample, forse è meglio spostare questa normalizzazione nella transform??
+- Ora sto trasformando le tublet da uint8 a float nella funzione getsample, forse è meglio spostare questa normalizzazione nella transform?
+- Aggiungere barra di progresso per ogni epoca

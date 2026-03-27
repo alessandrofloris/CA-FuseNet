@@ -5,7 +5,7 @@ d_common: 128
 gate_hidden: 64
 d_fused: 256
 n_indicators: 3
-dropout: 0.3
+dropout: 0.5
 num_classes: 37
 
 

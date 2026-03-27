@@ -1,7 +1,7 @@
 train:
   _target_: ca_fusenet.data.feeders.itwpolimi.ITWPOLIMI
 
-  root_dir: data/train/
+  root_dir: D:/Dataset_mock POLIMI-ITW-S_Dimensione_35/preprocessed/train
   bbox_file: bbox_store.npy
   indicators_file: indicators_store.npy
   joint_file: joint_store.npy
@@ -16,7 +16,7 @@ train:
 test:
   _target_: ca_fusenet.data.feeders.itwpolimi.ITWPOLIMI
 
-  root_dir: data/test/
+  root_dir: D:/Dataset_mock POLIMI-ITW-S_Dimensione_35/preprocessed/test
   bbox_file: bbox_store.npy
   indicators_file: indicators_store.npy
   joint_file: joint_store.npy

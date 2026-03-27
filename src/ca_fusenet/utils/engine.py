@@ -11,6 +11,7 @@ from omegaconf import DictConfig, OmegaConf
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 from ca_fusenet.data.collate import cafusenet_collate_fn
 
@@ -270,7 +271,15 @@ def run_epoch_fusion(
     context = nullcontext() if train else torch.no_grad()
 
     with context:
-        for batch in loader:
+
+        pbar = tqdm(
+            loader, 
+            desc="Training" if train else "Validation", 
+            leave=False, # La barra scompare a fine epoca per non intasare la console
+            disable=False # Puoi impostarlo a True se vuoi disattivarla in certi ambienti
+        )
+
+        for batch in pbar:
             required_keys = {"tublet", "pose", "indicators", "label"}
             missing = required_keys - set(batch.keys())
             if missing:
@@ -300,16 +309,26 @@ def run_epoch_fusion(
 
             logits = output["logits"]
             alpha = output["alpha"]
+            pose_aux_logits = output.get("pose_aux_logits")
             if logits.shape[0] != labels.shape[0]:
                 raise ValueError(
                     f"Batch size mismatch: logits={logits.shape[0]} labels={labels.shape[0]}"
                 )
 
-            loss = criterion(logits, labels)
-
+            loss_main = criterion(logits, labels)
+            #loss_aux = criterion(pose_aux_logits, labels)
+            #loss = loss_main + 0.3 * loss_aux
+            loss = loss_main
+            #print(f"loss_main: {loss_main.item():.4f}, loss_aux: {loss_aux.item():.4f}, "
+            #    f"loss_total: {loss.item():.4f}")
             if train:
                 loss.backward()
                 optimizer.step()
+
+            current_loss = loss.item()
+            total_loss += current_loss
+            
+            pbar.set_postfix(loss=f"{current_loss:.4f}")
 
             batch_size = labels.shape[0]
             total_loss += loss.item() * batch_size

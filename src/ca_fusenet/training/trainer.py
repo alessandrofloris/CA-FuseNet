@@ -17,14 +17,14 @@ def _store_metrics_history(metrics_history, epoch, train_metrics, val_metrics):
             {
                 "epoch": epoch,
                 "train": {
-                    "loss": _to_json_float(train_metrics.loss),
-                    "acc": _to_json_float(train_metrics.acc),
-                    "macro_f1": _to_json_float(train_metrics.macro_f1),
+                    "loss": _to_json_float(train_metrics["loss"]),
+                    "acc": _to_json_float(train_metrics["accuracy"]),
+                    "macro_f1": _to_json_float(train_metrics["macro_f1"]),
                 },
                 "val": {
-                    "loss": _to_json_float(val_metrics.loss),
-                    "acc": _to_json_float(val_metrics.acc),
-                    "macro_f1": _to_json_float(val_metrics.macro_f1),
+                    "loss": _to_json_float(val_metrics["loss"]),
+                    "acc": _to_json_float(val_metrics["accuracy"]),
+                    "macro_f1": _to_json_float(val_metrics["macro_f1"]),
                 },
             }
         )
@@ -42,11 +42,13 @@ def _save_checkpoint(model, cfg, epoch, path, val_acc):
 
 def _maybe_unfreeze_encoder(epoch, has_encoder_group, freeze_encoder_epochs, optimizer, lr_encoder):
     if not has_encoder_group or epoch != freeze_encoder_epochs + 1:
-        return
+        return False
     
     optimizer.param_groups[0]["lr"] = lr_encoder
 
     logger.info("Unfreezing encoder trainable params at epoch %d with lr_encoder=%s", epoch, lr_encoder)
+
+    return True
 
 def trainer(cfg, best_path, training_confg, criterion, has_encoder_group, model, optimizer, train_loader, val_loader, device):
 
@@ -103,12 +105,13 @@ def trainerMultiModal(cfg, scheduler, best_path, training_confg, criterion, has_
     metrics_history: list[dict] = []
     
     for epoch in range(1, epochs + 1):
-        _maybe_unfreeze_encoder(epoch, has_encoder_group, freeze_encoder_epochs, optimizer, lr_encoder)
+        unfreeze = _maybe_unfreeze_encoder(epoch, has_encoder_group, freeze_encoder_epochs, optimizer, lr_encoder)
 
         train_metrics = run_epoch_fusion(model, train_loader, device, criterion, optimizer, train=True)
         val_metrics = run_epoch_fusion(model, val_loader, device, criterion, None, train=False)
-        
-        scheduler.step()
+
+        #if unfreeze:        
+        #    scheduler.step()
 
         logger.info(
             "epoch=%d/%d train_loss=%.4f train_acc=%.4f train_f1=%.4f "

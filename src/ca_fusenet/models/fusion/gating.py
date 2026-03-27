@@ -18,8 +18,15 @@ class CrowdAwareGating(nn.Module):
         self.alpha_min = 0.1
         self.alpha_max = 0.9
 
-        self.video_proj = nn.Linear(d_video, d_common)
-        self.pose_proj = nn.Linear(d_pose, d_common)
+        # projection of video and pose features to a common space for gating
+        self.video_proj = self.video_proj = nn.Sequential(
+            nn.Linear(d_video, d_common),
+            nn.LayerNorm(d_common),
+        )
+        self.pose_proj = nn.Sequential(
+            nn.Linear(d_pose, d_common),
+            nn.LayerNorm(d_common),
+        )
 
         gate_in_dim = 2 * d_common + n_indicators
         self.gate_norm = nn.LayerNorm(gate_in_dim)
@@ -43,9 +50,13 @@ class CrowdAwareGating(nn.Module):
 
         o = o.mean(dim=1) # ATTENZIONE, da spostare nella collate
         z = torch.cat((v_gate, p_gate, o), dim=1)
-        z = self.gate_norm(z)
+        #z = self.gate_norm(z)
+        pre_sigmoid = self.gate_mlp[:-1](z)  # tutto tranne l'ultimo elemento (Sigmoid)
+        alpha = torch.sigmoid(pre_sigmoid)
         alpha = self.gate_mlp(z)
-        alpha = torch.clamp(alpha, min=self.alpha_min, max=self.alpha_max)
+
+        #alpha = torch.tensor(0.5, device=f_video.device)
+
 
         fused_weighted = torch.cat((alpha * f_pose, (1.0 - alpha) * f_video), dim=1)
         f_fused = self.fusion_proj(fused_weighted)

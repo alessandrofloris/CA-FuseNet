@@ -10,4 +10,4 @@ ch_ratio: 2
 gcn_adaptive: "init"
 gcn_with_res: true
 tcn_type: "mstcn"
-pretrained: null  # set to checkpoint path when using pretrained weights
+pretrained: "artifacts/best_pose_baseline.pt" 
